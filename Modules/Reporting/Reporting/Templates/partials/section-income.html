@@ -21,7 +21,7 @@ table.inc-cf .inc-pad { border:0 !important; background:transparent !important; 
 <div class="section-bar">การประเมินมูลค่าทรัพย์สินโดยวิธีรายได้ (Income Approach – {{ if inc.is_direct_capitalization }}Direct Capitalization{{ else }}Discounted Cash Flow{{ end }})</div>
 {{ ctx = inc.context }}{{ include 'partials/book-method-banner' }}
 
-<table class="params inc-params" style="margin-bottom:6px;">
+<table role="presentation" class="params inc-params" style="margin-bottom:6px;">
   <tr>
     <td class="pl">แม่แบบ</td>
     <td class="pv">{{ if inc.template_name }}{{ inc.template_name }}{{ else }}-{{ end }}</td>
@@ -98,7 +98,7 @@ table.inc-cf .inc-pad { border:0 !important; background:transparent !important; 
 {{ end }}
 
 {{- # Final value precedence (loader): IndicatedValue → FinalValueAdjust + HBU land → FinalValueRounded -}}
-<table class="totals" style="margin-top:8px; break-inside:avoid;">
+<table role="presentation" class="totals" style="margin-top:8px; break-inside:avoid;">
   {{ if inc.present_value_total != null }}
   <tr><td class="tl">{{ if inc.is_direct_capitalization }}มูลค่าจากรายได้ (NOI ÷ Cap Rate){{ else }}รวมมูลค่าปัจจุบัน{{ end }}</td><td class="tv">{{ inc.present_value_total | math.format "N2" }} บาท</td></tr>
   {{ end }}

@@ -27,7 +27,7 @@ public class BookConclusionValueTableTests
     {
         var html = await RenderAsync(Internal, Model());
 
-        html.Should().Contain("<table class=\"bk-val\">")
+        html.Should().Contain("<table role=\"presentation\" class=\"bk-val\">")
             .And.Contain("<div class=\"b\">มูลค่าทรัพย์สิน</div><div>(Market Value)</div>").And.Contain("<td class=\"c\">:</td>")
             .And.Contain("<td class=\"v\"><div>10,000,000.- บาท</div><div class=\"b\">(สิบล้านบาทถ้วน)</div></td>")
             .And.Contain("<div class=\"b\">มูลค่าบังคับขาย (70%)</div><div>(Forced Sale Value)</div>")
@@ -94,6 +94,6 @@ public class BookConclusionValueTableTests
 
         html.Should().NotContain("ขอรับรองว่าไม่มีผลประโยชน์ใดๆ").And.NotContain("กระทำการแทนในนาม").And.NotContain("bk-sign")
             .And.NotContain("ผู้ประเมินหลัก").And.NotContain("ผู้ตรวจสอบรายงาน").And.NotContain("ผู้สำรวจและประเมินมูลค่า");
-        html.Should().Contain("<table class=\"bk-val\">");
+        html.Should().Contain("<table role=\"presentation\" class=\"bk-val\">");
     }
 }

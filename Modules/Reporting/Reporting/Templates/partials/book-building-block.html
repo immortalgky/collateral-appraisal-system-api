@@ -1,5 +1,5 @@
 {{~ # Partial: the general-details and structure blocks of ONE building (caller sets b and bld_k). ~}}
-<div class="bk-bld">{{ if b.photo_src }}<div class="bk-img bk-bld-img"><img src="{{ b.photo_src }}"/></div>{{ end }}
+<div class="bk-bld">{{ if b.photo_src }}<div class="bk-img bk-bld-img"><img alt="" src="{{ b.photo_src }}"/></div>{{ end }}
 <div class="vk-head"><span>{{ if b.is_appraisable == false }}สิ่งปลูกสร้าง (ไม่ประเมินมูลค่า){{ else }}สิ่งปลูกสร้างรายการที่ {{ bld_k }}{{ end }}</span><span>{{ b.building_type_text }}{{ if b.number_of_floors }} {{ fx b.number_of_floors }} ชั้น{{ end }}</span></div>
 <div class="vk-sub">รายละเอียดทั่วไป</div>
 <div class="vk bk-keep">

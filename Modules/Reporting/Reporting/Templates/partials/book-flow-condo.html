@@ -9,7 +9,7 @@
 <div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
 <div class="bk-keep">
 <div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
-{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk">
   {{ addr = model.collateral_address ?? model.collateral_location }}
   {{ vk 'ที่ตั้ง' addr }}
@@ -113,7 +113,7 @@
 <div class="bk">
 <div class="bk-h1"><span>3.</span><span>ทรัพย์สินที่ประเมินมูลค่า</span></div>
 <div class="bk-h2"><span>3.1</span><span>อาคารชุด</span></div>
-{{ pic = appx_img 'BUILDING_LAYOUT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'BUILDING_LAYOUT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk bk-keep">
   {{ vk 'ชื่ออาคารชุด' cd.condo_name }}
   {{ vk 'อาคารเลขที่' cd.building_number }}
@@ -138,7 +138,7 @@
   {{ vk 'สาธารณูปโภค' cd.public_utility }}
 </div>
 <div class="bk-h2"><span>3.2</span><span>ห้องชุดที่ประเมิน</span></div>
-{{ pic = appx_img 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <table class="vt">
   <thead><tr><th style="width:40px;">ลำดับ</th><th>ห้องชุดเลขที่</th><th>ชั้นที่</th><th>พื้นที่ภายใน<br/>ห้องชุด (ตร.ม.)</th><th>พื้นที่ระเบียง<br/>(ตร.ม.)</th><th>พื้นที่วางแอร์<br/>(ตร.ม.)</th><th>พื้นที่อื่นๆ<br/>(ตร.ม.)</th><th>พื้นที่รวม<br/>(ตร.ม.)</th></tr></thead>
   <tbody>
@@ -174,7 +174,7 @@
 {{ else }}
 <div class="bk-keep">
 <div class="bk-h2"><span>4.1</span><span>ข้อกำหนดผังเมือง</span></div>
-{{ pic = appx_img 'CITY_PLAN' 'STATUTORY_PLAN' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'CITY_PLAN' 'STATUTORY_PLAN' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk">
   {{ vkm 'ผังเมืองรวม' }}
   {{ vk 'เป็นพื้นที่สี' cd.urban_planning_color }}

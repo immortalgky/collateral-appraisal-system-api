@@ -14,7 +14,7 @@
 <div class="appendix-grid cols-2 law-grid">
 {{ for img in law.images }}
 <div class="cell">
-<img src="{{ img.img_src }}"/>
+<img alt="" src="{{ img.img_src }}"/>
 {{ if img.caption }}<div class="cap">{{ img.caption }}</div>{{ end }}
 </div>
 {{ end }}

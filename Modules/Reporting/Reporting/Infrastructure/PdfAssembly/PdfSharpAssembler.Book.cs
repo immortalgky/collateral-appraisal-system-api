@@ -144,12 +144,13 @@ internal sealed partial class PdfSharpAssembler
             }
 
             using var ms = new MemoryStream();
-            output.Save(ms);
+            await output.SaveAsync(ms);
             return ms.ToArray();
         }
         finally
         {
-            overlayStream?.Dispose();
+            if (overlayStream is not null)
+                await overlayStream.DisposeAsync();
             foreach (var d in keepOpen)
                 d.Dispose();
         }

@@ -38,7 +38,7 @@
 {{ show_cover = concl_machine || ins_printed != true }}
 {{~ # The force-sale % shows only when every form of the book agrees on it (an appraisal that fans out to several summary forms adds them up). ~}}
 {{ forced_rate = model.force_sale_rate }}{{ if !model.is_external }}{{ for ex in model.extra_summary_forms }}{{ if ex.force_sale_rate != forced_rate }}{{ forced_rate = null }}{{ end }}{{ end }}{{ end }}
-<table class="bk-val">
+<table role="presentation" class="bk-val">
   <tr><td class="k"><div class="b">{{ if concl_machine }}มูลค่าตลาดเครื่องจักร{{ else }}มูลค่าทรัพย์สิน{{ end }}</div><div>{{ if concl_machine }}(Fair Market Value){{ else }}(Market Value){{ end }}</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 final_value) }}.- บาท</div>{{ if final_value != null }}<div class="b">({{ thai.baht_text final_value }})</div>{{ end }}</td></tr>
   <tr><td class="k"><div class="b">มูลค่าบังคับขาย{{ if forced_rate != null }} ({{ fx forced_rate }}%){{ end }}</div><div>(Forced Sale Value)</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 forced_value) }}.- บาท</div>{{ if forced_value != null }}<div class="b">({{ thai.baht_text forced_value }})</div>{{ end }}</td></tr>
   {{ if show_cover }}<tr><td class="k"><div class="b">{{ if concl_machine }}ทุนประกันภัยเครื่องจักร{{ else }}ทุนประกันภัยสิ่งปลูกสร้าง{{ end }}</div><div>(Insurance Value)</div></td><td class="c">:</td><td class="v"><div>{{ nz (f0 cover_value) }}.- บาท</div>{{ if cover_value != null }}<div class="b">({{ thai.baht_text cover_value }})</div>{{ end }}</td></tr>{{ end }}

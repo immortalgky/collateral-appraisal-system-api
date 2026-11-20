@@ -8,7 +8,7 @@
 <div class="bk">
 <div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
 <div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
-{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk">
   {{ vk 'ที่ตั้งโครงการ' (model.collateral_address ?? model.collateral_location) }}
   {{ vk 'การเข้าถึง' (ls ? ls.road_pass_in_front_of_land : null) }}

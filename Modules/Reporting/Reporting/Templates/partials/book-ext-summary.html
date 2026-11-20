@@ -47,7 +47,7 @@ end -}}
   {{ if model.collateral_value || model.forced_sale_value || model.building_coverage_amount }}
   <div class="bk-valbox">
     <div class="t">มูลค่าตลาดตามสภาพปัจจุบัน</div>
-    <table class="bk-val">
+    <table role="presentation" class="bk-val">
       {{ if model.collateral_value }}<tr><td class="k"><div class="b">&bull; มูลค่าตลาด</div><div>(Market Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.collateral_value }}.- บาท</div><div class="b">({{ thai.baht_text model.collateral_value }})</div></td></tr>{{ end }}
       {{ if model.forced_sale_value }}<tr><td class="k"><div class="b">&bull; มูลค่าบังคับขาย{{ if model.force_sale_rate != null }} ({{ fx model.force_sale_rate }}%){{ end }}</div><div>(Forced Sale Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.forced_sale_value }}.- บาท</div><div class="b">({{ thai.baht_text model.forced_sale_value }})</div></td></tr>{{ end }}
       {{ if model.building_coverage_amount }}<tr><td class="k"><div class="b">&bull; ทุนประกันภัยสิ่งปลูกสร้าง</div><div>(Insurance Value)</div></td><td class="c">:</td><td class="v"><div>{{ f0 model.building_coverage_amount }}.- บาท</div><div class="b">({{ thai.baht_text model.building_coverage_amount }})</div></td></tr>{{ end }}

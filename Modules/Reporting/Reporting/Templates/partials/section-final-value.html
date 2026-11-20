@@ -2,7 +2,7 @@
 {{ if fv_rows && fv_rows.size > 0 }}
 <div style="margin-top:8px; width:60%; break-inside:avoid;">
   <div style="font-weight:700; font-size:8.5pt; margin-bottom:2px;">ปรับมูลค่าสุดท้าย (Adjust Final Value)</div>
-  <table class="grid">
+  <table role="presentation" class="grid">
     {{ for r in fv_rows }}
     <tr>
       <td>{{ r.label }}</td>

@@ -118,7 +118,7 @@
 </table>
 {{~ # estimate (PV) + land not covered by the lease = total, so the printed figures add up (screen: LeaseholdPartialUsageSection). ~}}
 {{ if lh.estimate_net_price != null }}
-<table class="totals" style="margin-top:6px; break-inside:avoid;">
+<table role="presentation" class="totals" style="margin-top:6px; break-inside:avoid;">
   <tr><td class="tl">ประมาณการมูลค่าสิทธิการเช่า (จาก PV ปัดเศษหลักพัน)</td><td class="tv">{{ lh.final_value_rounded | math.format "N2" }} บาท</td></tr>
   {{ if lh.uncovered_land_price != null }}
   <tr><td class="tl">บวก ที่ดินส่วนที่ไม่ได้อยู่ในสัญญาเช่า{{ if lh.uncovered_land_area != null && lh.price_per_sq_wa != null }} ({{ lh.uncovered_land_area | math.format "N2" }} ตร.วา × {{ lh.price_per_sq_wa | math.format "N2" }}){{ end }}</td><td class="tv">{{ lh.uncovered_land_price | math.format "N2" }} บาท</td></tr>

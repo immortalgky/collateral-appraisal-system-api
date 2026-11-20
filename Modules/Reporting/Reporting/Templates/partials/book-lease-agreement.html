@@ -2,7 +2,7 @@
 {{ if leases && leases.size > 0 }}
 <div class="sub-bar">รายละเอียดสัญญาเช่า</div>
 {{ for ls in leases }}
-<table class="params" style="margin-bottom:6px;">
+<table role="presentation" class="params" style="margin-bottom:6px;">
   <tr>
     <td class="pl">ผู้ให้เช่า</td><td class="pv">{{ ls.lessor_name }}</td>
     <td class="pl">ผู้เช่า</td><td class="pv">{{ ls.lessee_name }}</td>

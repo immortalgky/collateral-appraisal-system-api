@@ -7,7 +7,7 @@
 <div class="bk">
 <div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
 <div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
-{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk">
   {{ vk 'ที่ตั้งโครงการ' (model.collateral_address ?? model.collateral_location) }}
   {{ vk 'พิกัด' ((gps pj.latitude pj.longitude) ?? model.gps) }}
@@ -26,7 +26,7 @@
 {{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
 <div class="bk">
 <div class="bk-h1"><span>2.</span><span>รายละเอียดโครงการ</span></div>
-{{ pic = appx_img 'LAND_PLAN' 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ pic = appx_img 'LAND_PLAN' 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
 <div class="vk bk-keep">
   {{ vk 'ชื่อโครงการ' pj.project_name }}
   {{ vk 'เจ้าของโครงการ' pj.developer }}

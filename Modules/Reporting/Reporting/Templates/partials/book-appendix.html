@@ -11,7 +11,7 @@
   <div class="appendix-grid cols-{{ group.layout_columns }}">
     {{ for img in group.images }}
     <div class="cell">
-      {{ if img.img_src }}<img src="{{ img.img_src }}"/>{{ end }}
+      {{ if img.img_src }}<img alt="" src="{{ img.img_src }}"/>{{ end }}
       {{ if img.caption }}<div class="cap">{{ img.caption }}</div>{{ end }}
     </div>
     {{ end }}

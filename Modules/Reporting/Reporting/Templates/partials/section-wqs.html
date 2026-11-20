@@ -20,9 +20,9 @@
       {{ end }}
     </tr>
     <tr>
-      <th>น้ำหนัก</th><th>ความเข้ม</th><th>คะแนน</th>
-      <th>คะแนน</th><th>ถ่วงน้ำหนัก</th>
-      {{ for h in (sl w.comparable_headers ch) }}<th>คะแนน</th><th>ถ่วงน้ำหนัก</th>{{ end }}
+      <th scope="col">น้ำหนัก</th><th scope="col">ความเข้ม</th><th scope="col">คะแนน</th>
+      <th scope="col">คะแนน</th><th scope="col">ถ่วงน้ำหนัก</th>
+      {{ for h in (sl w.comparable_headers ch) }}<th scope="col">คะแนน</th><th scope="col">ถ่วงน้ำหนัก</th>{{ end }}
     </tr>
   </thead>
   <tbody>
@@ -79,7 +79,7 @@
 <div style="display:flex; gap:12px; align-items:flex-start; margin-top:6px;">
   <div style="flex:1; min-width:0;">
   {{ if w.rsq != null || w.steyx != null || w.intercept != null || w.slope != null || w.forecast != null || w.lowest_estimate != null || w.highest_estimate != null }}
-  <table class="grid">
+  <table role="presentation" class="grid">
     {{ if w.rsq != null }}<tr><td>Coefficient of decision</td><td class="num">{{ w.rsq | math.format "N4" }}</td></tr>{{ end }}
     {{ if w.steyx != null }}<tr><td>Standard error</td><td class="num">{{ w.steyx | math.format "N2" }}</td></tr>{{ end }}
     {{ if w.intercept != null }}<tr><td>Intersection point</td><td class="num">{{ w.intercept | math.format "N2" }}</td></tr>{{ end }}
@@ -93,7 +93,7 @@
   <div style="flex:1; min-width:0;">
   {{ if w.scatter }}
   {{ s = w.scatter }}
-  <svg viewBox="0 0 {{ s.width }} {{ s.height }}" width="100%" style="border:1px solid #ccc; background:#fff;">
+  <svg aria-hidden="true" viewBox="0 0 {{ s.width }} {{ s.height }}" width="100%" style="border:1px solid #ccc; background:#fff;">
     <line x1="{{ s.plot_left }}" y1="{{ s.plot_top }}" x2="{{ s.plot_left }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
     <line x1="{{ s.plot_left }}" y1="{{ s.plot_bottom }}" x2="{{ s.plot_right }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
     <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dx="-4" dy="3" text-anchor="end" font-size="7">{{ s.y_max_label }}</text>

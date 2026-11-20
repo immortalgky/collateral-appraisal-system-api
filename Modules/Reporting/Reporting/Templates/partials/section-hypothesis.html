@@ -68,7 +68,7 @@
   </tbody>
   {{ else }}
   <thead>
-    <tr><th>แบบบ้าน</th><th>จำนวน (หลัง)</th><th>เนื้อที่ดินเฉลี่ย (ตร.วา)</th><th>เนื้อที่ดินรวม (ตร.วา)</th><th>พื้นที่ใช้สอยเฉลี่ย (ตร.ม.)</th><th>ราคาขายเฉลี่ย (บาท/หลัง)</th><th>รายรับ (บาท)</th></tr>
+    <tr><th scope="col">แบบบ้าน</th><th scope="col">จำนวน (หลัง)</th><th scope="col">เนื้อที่ดินเฉลี่ย (ตร.วา)</th><th scope="col">เนื้อที่ดินรวม (ตร.วา)</th><th scope="col">พื้นที่ใช้สอยเฉลี่ย (ตร.ม.)</th><th scope="col">ราคาขายเฉลี่ย (บาท/หลัง)</th><th scope="col">รายรับ (บาท)</th></tr>
   </thead>
   <tbody>
     {{ for m in hyp.models }}
@@ -112,7 +112,7 @@
   </tbody>
   {{ else }}
   <thead>
-    <tr><th>#</th><th>เลขที่แปลง</th><th>บ้านเลขที่</th><th>แบบบ้าน</th><th>ทำเล</th><th>ชั้น</th><th>เนื้อที่ดิน (ตร.วา)</th><th>พื้นที่ใช้สอย (ตร.ม.)</th><th>ราคาขาย (บาท)</th><th>หมายเหตุ 1</th><th>หมายเหตุ 2</th></tr>
+    <tr><th scope="col">#</th><th scope="col">เลขที่แปลง</th><th scope="col">บ้านเลขที่</th><th scope="col">แบบบ้าน</th><th scope="col">ทำเล</th><th scope="col">ชั้น</th><th scope="col">เนื้อที่ดิน (ตร.วา)</th><th scope="col">พื้นที่ใช้สอย (ตร.ม.)</th><th scope="col">ราคาขาย (บาท)</th><th scope="col">หมายเหตุ 1</th><th scope="col">หมายเหตุ 2</th></tr>
   </thead>
   <tbody>
     {{ for u in hyp.units }}

@@ -22,8 +22,8 @@
     {{ if table.subject_photo || table.photos.size > 0 }}
     <tr style="break-inside:avoid; page-break-inside:avoid;">
       <td>ภาพถ่าย</td>
-      {{ for sh in table.subject_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.subject_photo }}<img src="{{ table.subject_photo }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
-      {{ for h in table.comparable_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.photos.size > 0 && table.photos[for.index].size > 0 }}<img src="{{ table.photos[for.index][0] }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
+      {{ for sh in table.subject_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.subject_photo }}<img alt="" src="{{ table.subject_photo }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
+      {{ for h in table.comparable_headers }}<td style="height:38mm; padding:2px; text-align:center; vertical-align:middle;">{{ if table.photos.size > 0 && table.photos[for.index].size > 0 }}<img alt="" src="{{ table.photos[for.index][0] }}" style="max-width:100%; max-height:36mm; object-fit:contain;" />{{ end }}</td>{{ end }}
     </tr>
     {{ end }}
     {{ for row in table.fsd_rows }}

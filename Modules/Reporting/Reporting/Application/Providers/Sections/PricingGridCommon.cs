@@ -51,7 +51,8 @@ internal static class PricingGridCommon
     // A plain "2024-03-05" has nothing after its date, so it is not an offset value (its "-05" is the day).
     private static readonly System.Text.RegularExpressions.Regex IsoWithOffset = new(
         @"^\d{4}-\d{2}-\d{2}(?:[T ]\d{1,2}(?::\d{2}(?::\d{2}(?:\.\d+)?)?)?)?\s*(?:Z|[+-]\d{2}(?::?\d{2})?)$",
-        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
     private static readonly string[] LocalIsoFormats =
     [
@@ -80,7 +81,7 @@ internal static class PricingGridCommon
 
         if (IsoWithOffset.IsMatch(text))
         {
-            var compact = System.Text.RegularExpressions.Regex.Replace(text, @"\s+(?=(?:Z|[+-]\d{2}(?::?\d{2})?)$)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var compact = System.Text.RegularExpressions.Regex.Replace(text, @"\s+(?=(?:Z|[+-]\d{2}(?::?\d{2})?)$)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
             if (DateTimeOffset.TryParseExact(compact, OffsetFormats, Inv, DateTimeStyles.None, out var instant)
                 || DateTimeOffset.TryParse(compact, Inv, DateTimeStyles.None, out instant))
                 return ThaiDateFormatter.Long(toApplicationTime(instant.UtcDateTime));

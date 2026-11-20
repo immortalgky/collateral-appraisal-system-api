@@ -204,7 +204,7 @@ public class BookReviewRound1Tests
         var html = await RenderAsync("{{ include 'partials/book-flow-condo' }}", m);
 
         var heading = html.IndexOf("ห้องชุดที่ประเมิน", StringComparison.Ordinal);
-        var plan = html.IndexOf("<img src=\"file:///plan.png\"/>", StringComparison.Ordinal);
+        var plan = html.IndexOf("<img alt=\"\" src=\"file:///plan.png\"/>", StringComparison.Ordinal);
         plan.Should().BeGreaterThan(heading).And.BeLessThan(html.IndexOf("<table class=\"vt\">", heading, StringComparison.Ordinal));
         html.Should().Contain("<div class=\"cap\">ผังห้อง</div>");
     }

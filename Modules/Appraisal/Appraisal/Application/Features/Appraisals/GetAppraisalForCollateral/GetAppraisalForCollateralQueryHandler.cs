@@ -555,10 +555,9 @@ public class GetAppraisalForCollateralQueryHandler(
         var result = new Dictionary<Guid, PricingInfoForCollateral>();
         foreach (var pg in propertyToGroup)
         {
-            if (result.ContainsKey(pg.AppraisalPropertyId)) continue;
-            groupPricing.TryGetValue(pg.GroupId, out var info);
-            if (info is not null)
-                result[pg.AppraisalPropertyId] = info;
+            // first group wins when a property sits in more than one
+            if (groupPricing.TryGetValue(pg.GroupId, out var info))
+                result.TryAdd(pg.AppraisalPropertyId, info);
         }
 
         return result;
