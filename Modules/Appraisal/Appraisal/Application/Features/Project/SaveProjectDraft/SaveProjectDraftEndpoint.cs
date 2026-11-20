@@ -29,6 +29,7 @@ public class SaveProjectDraftEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save project draft")
             .WithDescription("Creates or updates the project for an appraisal with relaxed validation (required business fields are not enforced). ProjectType discriminates Condo vs LandAndBuilding.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

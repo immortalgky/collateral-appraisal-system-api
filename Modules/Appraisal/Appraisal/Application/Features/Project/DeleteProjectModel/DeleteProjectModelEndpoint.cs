@@ -23,6 +23,7 @@ public class DeleteProjectModelEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Delete project model")
             .WithDescription("Removes a model from a project.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

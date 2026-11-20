@@ -35,6 +35,7 @@ public class UploadProjectUnitsEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Upload project units from Excel")
             .WithDescription("Uploads an Excel file containing project unit data. Column layout differs by ProjectType (Condo vs LandAndBuilding).")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project")
             .DisableAntiforgery();
     }

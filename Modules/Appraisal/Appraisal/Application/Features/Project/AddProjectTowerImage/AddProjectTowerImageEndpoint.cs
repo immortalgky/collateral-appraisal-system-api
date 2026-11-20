@@ -41,6 +41,7 @@ public class AddProjectTowerImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Add image to project tower")
             .WithDescription("Links a gallery photo as an image to a project tower.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectTowers");
     }
 }

@@ -33,6 +33,7 @@ public class UnsetProjectModelImageThumbnailEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Unset project model image thumbnail")
             .WithDescription("Removes the thumbnail designation from the specified project model image.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectModels");
     }
 }

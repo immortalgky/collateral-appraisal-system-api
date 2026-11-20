@@ -34,6 +34,7 @@ public class SetProjectTowerImageThumbnailEndpoint : ICarterModule
             .WithSummary("Set project tower image as thumbnail")
             .WithDescription(
                 "Sets the specified image as the thumbnail for the project tower. Automatically unsets any existing thumbnail.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectTowers");
     }
 }

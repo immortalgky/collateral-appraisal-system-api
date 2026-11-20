@@ -24,6 +24,7 @@ public class GetPropertyCorrectionsQueryHandler(
                 r.Id,
                 r.AppraisalPropertyId,
                 r.PropertyType,
+                r.TargetId,
                 r.Reason,
                 r.ChangedBy,
                 r.ChangedAt,

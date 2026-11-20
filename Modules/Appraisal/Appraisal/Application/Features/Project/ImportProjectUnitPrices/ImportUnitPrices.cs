@@ -7,8 +7,9 @@ namespace Appraisal.Application.Features.Project.ImportProjectUnitPrices;
 /// <summary>
 /// Applies an Excel price list to the project's units. Stateless: the file is parsed again here, so
 /// nothing a client previewed can be tampered with between preview and import.
+/// <see cref="RecomputeValuation"/> is false only for a data correction, as on CalculateProjectUnitPricesCommand.
 /// </summary>
-public record ImportUnitPricesCommand(Guid AppraisalId, string FileName, byte[] FileContent)
+public record ImportUnitPricesCommand(Guid AppraisalId, string FileName, byte[] FileContent, bool RecomputeValuation = true)
     : ICommand<UnitPriceImportPreviewResponse>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public class ImportUnitPricesCommandHandler(
@@ -82,7 +83,8 @@ public class ImportUnitPricesCommandHandler(
 
         // Same as CalculateProjectUnitPrices: persist the block total to ValuationAnalyses (and publish the
         // appraised-value change for the approval tier) inside this transaction, after the prices are saved.
-        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
+        if (command.RecomputeValuation)
+            await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return response;
     }
@@ -114,6 +116,7 @@ public class ImportUnitPricesEndpoint : ICarterModule
                 "Re-parses the price list and, when it has no blocking error, writes the file's prices to the " +
                 "matched units, clears the prices of units the file does not mention, switches the project's " +
                 "price source to Imported and recomputes the appraisal total, all in one transaction.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project")
             .DisableAntiforgery();
     }

@@ -22,6 +22,7 @@ public class CalculateProjectUnitPricesEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Calculate project unit prices")
             .WithDescription("Runs the unit-price calculation for all units in a project. Works for both Condo and LandAndBuilding project types.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

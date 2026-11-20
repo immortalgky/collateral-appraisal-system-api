@@ -38,6 +38,7 @@ public class SaveProjectPricingAssumptionsEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save project pricing assumptions")
             .WithDescription("Saves pricing assumptions for a project. Automatically routes to the correct domain method (Condo or LandAndBuilding) based on the project type. ModelAssumptions null = no change; empty array = clear all.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }
