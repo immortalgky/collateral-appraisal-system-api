@@ -10685,6 +10685,10 @@ namespace Appraisal.infrastructure.Migrations
                                 .HasMaxLength(10)
                                 .HasColumnType("nvarchar(10)");
 
+                            b1.Property<string>("MachineTypeOther")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("Manufacturer")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
@@ -11116,6 +11120,14 @@ namespace Appraisal.infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
+                            b1.Property<string>("Color")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("ColorOther")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("ConditionUse")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
@@ -11157,6 +11169,10 @@ namespace Appraisal.infrastructure.Migrations
                                 .HasPrecision(10, 2)
                                 .HasColumnType("decimal(10,2)");
 
+                            b1.Property<string>("LicensePlateNumber")
+                                .HasMaxLength(50)
+                                .HasColumnType("nvarchar(50)");
+
                             b1.Property<string>("Location")
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -11183,6 +11199,9 @@ namespace Appraisal.infrastructure.Migrations
                             b1.Property<decimal?>("PurchasePrice")
                                 .HasPrecision(18, 2)
                                 .HasColumnType("decimal(18,2)");
+
+                            b1.Property<DateTime?>("RegistrationDate")
+                                .HasColumnType("datetime2");
 
                             b1.Property<string>("RegistrationNumber")
                                 .HasMaxLength(50)
@@ -11228,6 +11247,14 @@ namespace Appraisal.infrastructure.Migrations
                             b1.Property<string>("VehicleTechnology")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("VehicleType")
+                                .HasMaxLength(10)
+                                .HasColumnType("nvarchar(10)");
+
+                            b1.Property<string>("VehicleTypeOther")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("Width")
                                 .HasPrecision(10, 2)
@@ -11302,6 +11329,10 @@ namespace Appraisal.infrastructure.Migrations
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
 
+                            b1.Property<string>("EnginePower")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
+
                             b1.Property<string>("FormerName")
                                 .HasMaxLength(200)
                                 .HasColumnType("nvarchar(200)");
@@ -11313,6 +11344,10 @@ namespace Appraisal.infrastructure.Migrations
                             b1.Property<decimal?>("Height")
                                 .HasPrecision(10, 2)
                                 .HasColumnType("decimal(10,2)");
+
+                            b1.Property<string>("HullNumber")
+                                .HasMaxLength(100)
+                                .HasColumnType("nvarchar(100)");
 
                             b1.Property<bool>("IsOwnerVerified")
                                 .HasColumnType("bit");
@@ -11332,6 +11367,10 @@ namespace Appraisal.infrastructure.Migrations
                             b1.Property<decimal?>("NetTonnage")
                                 .HasPrecision(18, 4)
                                 .HasColumnType("decimal(18,4)");
+
+                            b1.Property<decimal?>("NumberOfEngines")
+                                .HasPrecision(10, 2)
+                                .HasColumnType("decimal(10,2)");
 
                             b1.Property<string>("Other")
                                 .HasMaxLength(4000)
@@ -11411,6 +11450,10 @@ namespace Appraisal.infrastructure.Migrations
                             b1.Property<string>("VesselType")
                                 .HasMaxLength(100)
                                 .HasColumnType("nvarchar(100)");
+
+                            b1.Property<string>("VesselTypeOther")
+                                .HasMaxLength(200)
+                                .HasColumnType("nvarchar(200)");
 
                             b1.Property<decimal?>("Width")
                                 .HasPrecision(10, 2)
