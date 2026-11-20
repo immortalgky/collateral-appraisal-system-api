@@ -67,15 +67,17 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.IsOwnerVerified,
             command.BuildingConditionType,
             command.BuildingConditionTypeOther,
-            command.HasObligation,
+            command.ObligationType,
             command.ObligationDetails,
+            command.MortgageDetails,
             command.DocumentValidationResultType,
             command.LocationType,
+            command.LocationRemark,
             command.Street,
             command.Soi,
             command.DistanceFromMainRoad,
-            command.AccessRoadWidth,
-            command.RightOfWay,
+            command.CarriagewayWidth,
+            command.RightOfWayWidth,
             command.RoadSurfaceType,
             command.RoadSurfaceTypeOther,
             command.PublicUtilityType,
@@ -105,6 +107,7 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.IsInExpropriationLine,
             command.ExpropriationLineRemark,
             command.RoyalDecree,
+            command.OtherLegalLimitations,
             command.IsForestBoundary,
             command.ForestBoundaryRemark,
             command.FacilityType,
@@ -126,7 +129,21 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
             command.GovernmentPricePerSqm,
             command.GovernmentPrice,
             command.FireInsuranceCode,
-            command.BuildingInsurancePriceOverride);
+            command.BuildingInsurancePriceOverride,
+            hasFloodProblem: command.HasFloodProblem,
+            floodProblemRemark: command.FloodProblemRemark,
+            hasPollutionProblem: command.HasPollutionProblem,
+            pollutionType: command.PollutionType,
+            pollutionTypeOther: command.PollutionTypeOther,
+            pollutionProblemRemark: command.PollutionProblemRemark,
+            hasOtherEnvironmentProblem: command.HasOtherEnvironmentProblem,
+            otherEnvironmentProblemRemark: command.OtherEnvironmentProblemRemark,
+            roadPassInFrontOfLand: command.RoadPassInFrontOfLand,
+            transportationAccessType: command.TransportationAccessType,
+            transportationAccessTypeOther: command.TransportationAccessTypeOther,
+            numberOfLanes: command.NumberOfLanes,
+            urbanPlanningColor: command.UrbanPlanningColor,
+            urbanPlanningColorOther: command.UrbanPlanningColorOther);
 
         // 5. Create CondoAreaDetails if provided
         if (command.AreaDetails is { Count: > 0 })
@@ -144,7 +161,8 @@ public class CreateLeaseAgreementCondoPropertyCommandHandler(
                 command.LeaseAgreement.Sublease, command.LeaseAgreement.AdditionalExpenses,
                 command.LeaseAgreement.LeaseTerminate, command.LeaseAgreement.ContractRenewal,
                 command.LeaseAgreement.RentalTermsImpactingPropertyUse, command.LeaseAgreement.TerminationOfLease,
-                command.LeaseAgreement.Remark);
+                command.LeaseAgreement.Remark,
+                command.LeaseAgreement.IsLeaseRegistered, command.LeaseAgreement.IsLeaseholdPledgeable);
         }
 
         // 7. Update rental info if provided

@@ -1,4 +1,5 @@
 using System.Data;
+using Reporting.Application.Formatting;
 using Reporting.Application.Models.Sections;
 
 namespace Reporting.Application.Providers.Sections;
@@ -32,10 +33,14 @@ internal static class CostMachineSectionLoader
     /// </summary>
     /// <param name="connection">An open Dapper <see cref="IDbConnection"/>.</param>
     /// <param name="appraisalId">The appraisal to load cost-machine data for.</param>
+    /// <param name="currentYearBe">This year in พ.ศ. — the screen's n is this minus the machine's year of manufacture.</param>
+    /// <param name="toApplicationTime">UTC → the application's time zone (for the Date factors of the RCN sub-analyses).</param>
     /// <param name="ct">Cancellation token.</param>
     public static async Task<IReadOnlyList<CostMachineSection>> LoadAllAsync(
         IDbConnection connection,
         Guid appraisalId,
+        int currentYearBe,
+        Func<DateTime, DateTime> toApplicationTime,
         CancellationToken ct = default)
     {
         var p = new DynamicParameters();
@@ -68,6 +73,7 @@ internal static class CostMachineSectionLoader
                 mad.RegistrationNumber,
                 mad.Manufacturer,
                 mad.ConditionUse,
+                mad.IsPriceCertified,
                 mad.YearOfManufacture,
                 mad.MachineAge,
                 mci.LifeSpanYears,
@@ -76,7 +82,11 @@ internal static class CostMachineSectionLoader
                 mci.EconomicObsolescence,
                 mci.RcnReplacementCost,
                 mci.FairMarketValue,
-                mci.MarketDemandAvailable
+                mci.MarketDemandAvailable,
+                mci.Notes,
+                mci.AppraisalPropertyId,
+                mci.PricingMethodId,
+                pam.Remark AS MethodRemark
             FROM appraisal.MachineCostItems mci
             JOIN appraisal.PricingAnalysisMethods pam
                 ON pam.Id = mci.PricingMethodId
@@ -98,6 +108,28 @@ internal static class CostMachineSectionLoader
         if (rawRows.Count == 0)
             return [];
 
+        // สภาพการใช้งาน code -> Thai (01 = ใช้งานอยู่), the same group the machinery page resolves.
+        var conditionNames = (await connection.QueryAsync<(string Code, string? Description)>(
+                new CommandDefinition(
+                    "SELECT [code] AS Code, [description] AS Description FROM parameter.Parameters WHERE [group] = 'ConditionUse' AND [language] = 'TH' AND [isactive] = 1",
+                    cancellationToken: ct)))
+            .ToDictionary(r => r.Code, r => r.Description, StringComparer.OrdinalIgnoreCase);
+
+        // ONE MachineryCost method per group. The picker can return several for a group (none selected, or a reference approach next
+        // to the used one), and their items would print as one merged, doubled table. Take the non-reference method first, then the
+        // selected one, then one that carries a value; ties keep the picker's (creation) order. Its approach / role gives the page banner.
+        var picked = await PricingMethodPicker.LoadAsync(connection, appraisalId, ["MachineryCost"], ct);
+        var contexts = OnePerGroup(picked).ToDictionary(m => m.PricingMethodId, m => m.Context);
+
+        // Only that method's items: an unselected alternative keeps its MachineCostItems rows, and they must not print.
+        rawRows = rawRows.Where(r => contexts.ContainsKey(r.PricingMethodId)).ToList();
+        if (rawRows.Count == 0)
+            return [];
+
+        // ── ที่มาของราคาทดแทนใหม่ (RCN): the MachineryCostRef sub-analyses, anchored to each machine ──
+        var rcnSources = await PricingSubAnalysisLoader.LoadForHostsAsync(
+            connection, rawRows.Select(r => r.PricingMethodId).Distinct().ToList(), toApplicationTime, ct);
+
         // ── Bucket rows into groups (preserving GroupNumber order from the query) ──
         var groups = rawRows
             .GroupBy(r => r.GroupNumber)
@@ -114,7 +146,7 @@ internal static class CostMachineSectionLoader
                         MachineDetail       = ComposeMachineDetail(r.MachineName, r.Brand, r.Model),
                         RegistrationNumber  = r.RegistrationNumber,
                         ManufacturerCountry = r.Manufacturer,
-                        ConditionUse        = r.ConditionUse,
+                        ConditionUse        = ParameterCodeFormatter.Translate(r.ConditionUse, conditionNames),
                         YearOfUse           = r.YearOfManufacture,
                         LifeSpanN           = r.LifeSpanYears,
                         AgeN                = r.MachineAge,
@@ -125,9 +157,29 @@ internal static class CostMachineSectionLoader
                         EconomicE           = r.EconomicObsolescence,
                         Rcn                 = r.RcnReplacementCost,
                         Fmv                 = r.FairMarketValue,
-                        MarketDemand        = r.MarketDemandAvailable ? "ใช้งานได้" : "ใช้งานไม่ได้"
+                        // Derived like the screen (RCN x P x F x E > 0), not the flag saved with the row:
+                        // the screen recomputes from the live inputs every time it opens.
+                        MarketDemand        = ScreenMarketDemand(r.ConditionUse, r.IsPriceCertified, r.YearOfManufacture,
+                                                  r.LifeSpanYears, r.RcnReplacementCost, r.ConditionFactor,
+                                                  r.FunctionalObsolescence, r.EconomicObsolescence, currentYearBe)
+                                              ? "ใช้งานได้" : "ใช้งานไม่ได้",
+                        Notes               = string.IsNullOrWhiteSpace(r.Notes) ? null : r.Notes.Trim()
                     })
                     .ToList();
+
+                // Each machine's RCN analysis, captioned with the machine it priced, in table order.
+                var sources = groupRows
+                    .Select((r, i) => (r, Seq: i + 1))
+                    .SelectMany(x => rcnSources.Where(s => s.AnchorId == x.r.AppraisalPropertyId).Select(s => new PricingSubAnalysis
+                    {
+                        Heading     = s.Sub.Heading,
+                        Caption     = $"ลำดับที่ {x.Seq}" + (rows[x.Seq - 1].MachineDetail is { } d ? $" {d}" : ""),
+                        MethodLabel = s.Sub.MethodLabel,
+                        Wqs         = s.Sub.Wqs,
+                        SaleGrid    = s.Sub.SaleGrid
+                    }))
+                    .ToList();
+                var remarks = groupRows.Select(r => r.MethodRemark?.Trim()).Where(x => !string.IsNullOrEmpty(x)).Distinct().ToList();
 
                 return new MachineCostGroup
                 {
@@ -143,17 +195,65 @@ internal static class CostMachineSectionLoader
                         : (decimal?)null,
                     TotalFmv      = groupRows.Any(r => r.FairMarketValue.HasValue)
                         ? groupRows.Sum(r => r.FairMarketValue ?? 0m)
-                        : (decimal?)null
+                        : (decimal?)null,
+                    RcnSources    = sources,
+                    Remark        = remarks.Count == 0 ? null : string.Join("\n", remarks)
                 };
             })
             .ToList();
 
-        // Wrap in a list of 1. MachineCostGroup provides the internal per-group splitting;
-        // the outer section always has GroupNumber = 0, GroupName = null.
-        return [new CostMachineSection { Groups = groups }];
+        // One section per property group, carrying the group's own number / name and the method's
+        // approach context, so the book places it under that group's heading (a single section with
+        // GroupNumber 0 printed every group under "ทรัพย์สินที่ไม่ได้จัดกลุ่ม").
+        return groups
+            .Select(g => new CostMachineSection
+            {
+                GroupNumber = g.GroupNumber,
+                GroupName   = g.GroupName,
+                Context     = rawRows.Where(r => r.GroupNumber == g.GroupNumber)
+                                     .Select(r => contexts.GetValueOrDefault(r.PricingMethodId))
+                                     .FirstOrDefault(c => c is not null),
+                Groups      = [g]
+            })
+            .ToList();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────────
+
+    private const string NotFoundConditionCode = "03";
+
+    /// <summary>
+    /// ONE MachineryCost method per group: the non-reference one first, then the selected one, then one that carries a value; ties keep
+    /// the picker's (creation) order. Several methods of a group would print as one merged, doubled table.
+    /// </summary>
+    internal static IEnumerable<PickedMethod> OnePerGroup(IEnumerable<PickedMethod> picked) =>
+        picked.GroupBy(m => m.GroupNumber)
+            .Select(g => g.OrderBy(m => m.Context.IsReference)
+                          .ThenByDescending(m => m.MethodSelected)
+                          .ThenByDescending(m => PricingMethodPicker.HasValue(m.MethodValue))
+                          .First());
+
+    /// <summary>
+    /// The screen's "ความต้องการตลาด" (CostMachineSection.tsx useRowComputedValues): FMV = RCN x P x F x E and the
+    /// demand is Y when FMV &gt; 0. n = this year (พ.ศ.) − year of manufacture, R = N − n floored at 5 years
+    /// (except for a machine not found, code 03), P = round((1 − (N − R)/N) x C, 2). A locked row — not found,
+    /// or the price certification withdrawn — is worth nothing.
+    /// </summary>
+    internal static bool ScreenMarketDemand(
+        string? conditionUse, bool? isPriceCertified, int? yearOfManufacture, decimal? lifeSpan, decimal? rcn,
+        decimal conditionFactor, decimal functionalObsolescence, decimal economicObsolescence, int currentYearBe)
+    {
+        if (conditionUse == NotFoundConditionCode || isPriceCertified == false)
+            return false;
+
+        var n = yearOfManufacture is > 0 ? currentYearBe - yearOfManufacture.Value : 0;
+        var life = lifeSpan ?? 0m;
+        var residual = life - n;
+        if (residual < 5m)
+            residual = 5m; // conditionUse is not "03" here: that case returned above
+        var physical = life != 0m ? Math.Round((1m - (life - residual) / life) * conditionFactor, 2, MidpointRounding.AwayFromZero) : 0m;
+        return (rcn ?? 0m) * physical * functionalObsolescence * economicObsolescence > 0m;
+    }
 
     /// <summary>R = N − n. Null when either input is missing.</summary>
     private static decimal? DeriveRemaining(decimal? lifeSpanN, decimal? ageN)
@@ -194,6 +294,7 @@ internal static class CostMachineSectionLoader
         public string? RegistrationNumber { get; init; }
         public string? Manufacturer { get; init; }
         public string? ConditionUse { get; init; }
+        public bool? IsPriceCertified { get; init; }
         public int? YearOfManufacture { get; init; }
         public decimal? MachineAge { get; init; }
 
@@ -205,5 +306,9 @@ internal static class CostMachineSectionLoader
         public decimal? RcnReplacementCost { get; init; }
         public decimal? FairMarketValue { get; init; }
         public bool MarketDemandAvailable { get; init; }
+        public string? Notes { get; init; }
+        public Guid AppraisalPropertyId { get; init; }
+        public Guid PricingMethodId { get; init; }
+        public string? MethodRemark { get; init; }
     }
 }

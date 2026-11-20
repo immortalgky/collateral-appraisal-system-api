@@ -1,57 +1,48 @@
 {{ if model.machine_section }}
+{{- func nz; if $0 != null && $0 != ""; ret $0; end; ret "-"; end -}}
 {{ $ms = model.machine_section }}
 
-{{ if $ms.assignment || $ms.valuation_purpose || model.appraisal_date || $ms.property_characteristics }}
 <div class="section-bar center">1. วัตถุประสงค์และที่ตั้งเครื่องจักร</div>
 
 <div class="pad">
 
-  {{ if $ms.assignment }}
   <div class="numbered">
     <span class="no">1.1</span>
     <div class="body">
       <div class="t">การมอบหมาย</div>
-      <div class="narrative">{{ $ms.assignment }}</div>
+      <div class="narrative">{{ nz $ms.assignment }}</div>
     </div>
   </div>
-  {{ end }}
 
-  {{ if $ms.valuation_purpose }}
   <div class="numbered">
     <span class="no">1.2</span>
     <div class="body">
       <div class="t">วัตถุประสงค์ในการประเมินมูลค่าทรัพย์สิน</div>
-      <div class="narrative">{{ $ms.valuation_purpose }}</div>
+      <div class="narrative">{{ nz $ms.valuation_purpose }}</div>
     </div>
   </div>
-  {{ end }}
 
-  <!-- FSD: the survey line is prefixed with the appraiser (internal → bank, external →
+  <!-- FSD: the survey line is prefixed with the appraiser (internal -> bank, external ->
        appraisal company). Prefix is omitted when the appraiser could not be resolved. -->
-  {{ if model.appraisal_date }}
   <div class="numbered">
     <span class="no">1.3</span>
     <div class="body">
       <div class="t">วันที่สำรวจและประเมินมูลค่าทรัพย์สิน</div>
-      <div class="narrative">{{ if model.appraiser }}{{ model.appraiser }} {{ end }}ได้ทำการสำรวจ เมื่อวันที่ {{ thai.date model.appraisal_date }}<br/>ประเมินมูลค่าทรัพย์สิน เมื่อวันที่ {{ thai.date model.appraisal_date }}</div>
+      <div class="narrative">{{ if model.appraisal_date }}{{ if model.appraiser }}{{ model.appraiser }} {{ end }}ได้ทำการสำรวจ เมื่อวันที่ {{ thai.date model.appraisal_date }}<br/>ประเมินมูลค่าทรัพย์สิน เมื่อวันที่ {{ thai.date model.appraisal_date }}{{ else }}-{{ end }}</div>
     </div>
   </div>
-  {{ end }}
 
-  {{ if $ms.property_characteristics }}
   <div class="numbered">
     <span class="no">1.4</span>
     <div class="body">
       <div class="t">ลักษณะทรัพย์สินที่ประเมินมูลค่า</div>
-      <div class="narrative">{{ $ms.property_characteristics }}</div>
+      <div class="narrative">{{ nz $ms.property_characteristics }}</div>
     </div>
   </div>
-  {{ end }}
 
 </div>
 
 <div style="page-break-before:always;"></div>
-{{ end }}
 
 <div class="section-bar center">2. รายละเอียดเครื่องจักร</div>
 
@@ -79,17 +70,11 @@
   <div class="kv"><span class="k">สภาพการบำรุงรักษาเครื่องจักรพร้อมอุปกรณ์</span><span class="c">:</span><span class="v">{{ $ms.maintenance_condition }}</span></div>
   <div class="kv"><span class="k">สภาพภายนอกของเครื่องจักรพร้อมอุปกรณ์</span><span class="c">:</span><span class="v">{{ $ms.exterior_condition }}</span></div>
   <div class="kv"><span class="k">ประสิทธิภาพการใช้งาน</span><span class="c">:</span><span class="v">{{ $ms.efficiency }}</span></div>
-  <!-- Tri-state bool renders as a tick: the label already states the condition.
-       Guard on != null, not truthiness — Scriban treats false as falsy, so a plain
-       check would render the unknown case identically to an explicit "no demand". -->
-  {{ if $ms.market_demand_available != null }}
-  <div class="kv"><span class="k">ความต้องการของตลาด ใช้งานได้ / ใช้งานอยู่</span><span class="c">:</span><span class="v"><span class="chk {{ if $ms.market_demand_available }}on{{ end }}"></span></span></div>
-  {{ end }}
+  <!-- Tri-state bool: the tick is on only for an explicit "available"; the row itself is an FSD line, always printed. -->
+  <div class="kv"><span class="k">ความต้องการของตลาด ใช้งานได้ / ใช้งานอยู่</span><span class="c">:</span><span class="v"><span class="chk {{ if $ms.market_demand_available == true }}on{{ end }}"></span></span></div>
 
-  {{ if $ms.market_demand }}
   <div class="sub-bar">ความต้องการของตลาด</div>
-  <div class="narrative">{{ $ms.market_demand }}</div>
-  {{ end }}
+  <div class="narrative">{{ nz $ms.market_demand }}</div>
 
   <div class="sub-bar">2.2 สิทธิและเงื่อนไขข้อจำกัดทางกฎหมาย</div>
 
@@ -105,34 +90,48 @@
 </div>
 
 {{ if $ms.machines.size > 0 }}
-{{ for m in $ms.machines }}
-<div class="machine-block">
-  <div class="machine-head">
-    <span class="machine-seq">{{ m.sequence }}.</span>
-    <span class="machine-qty">จำนวน {{ if m.quantity }}{{ m.quantity }}{{ else }}-{{ end }}</span>
-    <span class="machine-title">{{ m.machine_name }}</span>
-  </div>
-  <div class="machine-attrs">
-    <div class="kv"><span class="k">หมายเลขทะเบียน :</span><span class="v">{{ m.registration_number }}</span></div>
-    <div class="kv"><span class="k">ตำแหน่งที่ตั้ง :</span><span class="v">{{ m.location }}</span></div>
-    <div class="kv"><span class="k">สภาพการใช้งาน :</span><span class="v">{{ m.condition_use }}</span></div>
-    <div class="kv"><span class="k">ยี่ห้อ :</span><span class="v">{{ m.brand }}</span></div>
-    <div class="kv"><span class="k">แบบ :</span><span class="v">{{ m.type }}</span></div>
-    <div class="kv"><span class="k">รุ่น :</span><span class="v">{{ m.model }}{{ if m.year_of_manufacture }} , ปี {{ m.year_of_manufacture }}{{ end }}</span></div>
-    <div class="kv"><span class="k">อายุเครื่องจักร :</span><span class="v">{{ if m.machine_age != null }}{{ m.machine_age }} ปี{{ end }}</span></div>
-    <div class="kv"><span class="k">ขนาดเครื่อง :</span><span class="v">{{ m.machine_dimensions }}</span></div>
-    <div class="kv"><span class="k">พลังงานที่ใช้ :</span><span class="v">{{ m.energy_use }}</span></div>
-    <div class="kv"><span class="k">หมายเลขเครื่อง :</span><span class="v">{{ m.serial_no }}</span></div>
-    <div class="kv"><span class="k">ใช้ในการ :</span><span class="v">{{ m.usage_purpose }}</span></div>
-    <div class="kv"><span class="k">ขนาดความสามารถ :</span><span class="v">{{ m.capacity }}</span></div>
-    <div class="kv"><span class="k">ผู้ผลิต :</span><span class="v">{{ m.manufacturer }}</span></div>
-    <div class="kv"><span class="k">อื่นๆ :</span><span class="v">{{ m.other }}</span></div>
-    <div class="kv kv-block"><span class="k">ส่วนประกอบของเครื่องจักร :</span><span class="v">{{ m.machine_parts }}</span></div>
-    <div class="kv kv-block"><span class="k">หมายเหตุ :</span><span class="v">{{ m.remark }}</span></div>
-    <div class="kv kv-block"><span class="k">ความเห็นผู้ประเมิน :</span><span class="v">{{ m.appraiser_opinion }}</span></div>
-  </div>
+<div class="pad machine-summary">
+  <div class="sub-bar">2.3 รายงานการสำรวจและประเมินมูลค่าเครื่องจักรพร้อมอุปกรณ์</div>
+  <style>.fsd-machines th { background:#e7e7e7; text-align:center; font-weight:700; }</style>
+  <table class="grid fsd-machines">
+    <thead>
+      <tr>
+        <th style="width:40px;">ลำดับ</th>
+        <th style="width:60px;">จำนวน</th>
+        <th>ชื่อและรายละเอียดของเครื่องจักรพร้อมอุปกรณ์</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ for m in $ms.machines }}
+      <tr>
+        <td class="ctr" style="vertical-align:top;">{{ m.sequence }}</td>
+        <td class="ctr" style="vertical-align:top;">{{ if m.quantity }}{{ m.quantity }}{{ else }}-{{ end }}</td>
+        <td>
+          <div class="machine-title" style="font-weight:700;">{{ m.machine_name }}</div>
+          <div class="machine-attrs">
+            <div class="kv"><span class="k">หมายเลขทะเบียน :</span><span class="v">{{ m.registration_number }}</span></div>
+            <div class="kv"><span class="k">ตำแหน่งที่ตั้ง :</span><span class="v">{{ m.location }}</span></div>
+            <div class="kv"><span class="k">สภาพการใช้งาน :</span><span class="v">{{ m.condition_use }}</span></div>
+            <div class="kv"><span class="k">ยี่ห้อ :</span><span class="v">{{ m.brand }}</span></div>
+            <div class="kv"><span class="k">แบบ :</span><span class="v">{{ m.type }}</span></div>
+            <div class="kv"><span class="k">รุ่น :</span><span class="v">{{ m.model }}{{ if m.year_of_manufacture }} , ปี {{ m.year_of_manufacture }}{{ end }}</span></div>
+            <div class="kv"><span class="k">ขนาดเครื่อง :</span><span class="v">{{ m.machine_dimensions }}</span></div>
+            <div class="kv"><span class="k">พลังงานที่ใช้ :</span><span class="v">{{ m.energy_use }}</span></div>
+            <div class="kv"><span class="k">หมายเลขเครื่อง :</span><span class="v">{{ m.serial_no }}</span></div>
+            <div class="kv"><span class="k">ใช้ในการ :</span><span class="v">{{ m.usage_purpose }}</span></div>
+            <div class="kv"><span class="k">ขนาดความสามารถ :</span><span class="v">{{ m.capacity }}</span></div>
+            <div class="kv"><span class="k">ผู้ผลิต :</span><span class="v">{{ m.manufacturer }}</span></div>
+            <div class="kv"><span class="k">อื่นๆ :</span><span class="v">{{ m.other }}</span></div>
+            <div class="kv kv-block"><span class="k"><u>ส่วนประกอบของเครื่องจักร</u> :</span><span class="v">{{ m.machine_parts }}</span></div>
+            <div class="kv kv-block"><span class="k"><u>หมายเหตุ</u> :</span><span class="v">{{ m.remark }}</span></div>
+            <div class="kv kv-block"><span class="k"><u>ความเห็นผู้ประเมิน</u> :</span><span class="v">{{ m.appraiser_opinion }}</span></div>
+          </div>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
 </div>
-{{ end }}
 {{ end }}
 
 {{ end }}

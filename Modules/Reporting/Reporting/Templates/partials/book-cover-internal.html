@@ -13,12 +13,17 @@
     {{ if model.appraisal_book_number }}({{ model.appraisal_book_number }}){{ end }}
   </div>
 
+  {{~ # CoverNarrative: up to three centred lines (what / how big / where). Body types it does not cover keep the two labelled lines. ~}}
+  {{ if model.cover_lines.size > 0 }}
+  {{ for l in model.cover_lines }}<div class="{{ if for.last }}cover-location{{ else }}cover-property-type{{ end }}" style="white-space:pre-line">{{ l }}</div>{{ end }}
+  {{ else }}
   {{ if model.property_type }}
   <div class="cover-property-type">ประเภททรัพย์สิน : {{ model.property_type }}</div>
   {{ end }}
 
   {{ if model.collateral_address }}
   <div class="cover-location" style="white-space:pre-line">ที่ตั้งทรัพย์สิน : {{ model.collateral_address }}</div>
+  {{ end }}
   {{ end }}
 
   {{ if model.appraisal_date }}

@@ -315,7 +315,7 @@ public record PropertyGroupItemDto
     public decimal? LeaseRentFee { get; set; }
     /// <summary>Title deed no(s): comma-joined LandTitles for land, unit deed for condo.</summary>
     public string? TitleNo { get; set; }
-    /// <summary>True for plain land (L/LB) flagged "rented out to others"; null for non-land types.</summary>
+    /// <summary>True for a plain land (L/LB) or condo (U) flagged "rented out to others"; null for other types.</summary>
     public bool? IsRentedOut { get; set; }
     public List<PropertyPhotoDto>? Photos { get; set; }
     /// <summary>Full land titles (land/land-and-building only); null/empty for other types.</summary>

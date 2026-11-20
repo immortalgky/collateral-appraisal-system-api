@@ -41,24 +41,15 @@ public sealed class AppraisalSummaryDataProvider(
 
         using var connection = connectionFactory.CreateNewConnection();
 
-        const string sql = """
+        const string sql =
+            """
             SELECT
                 CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.Projects pr
                                        WHERE pr.AppraisalId = @AppraisalId)
                           THEN 1 ELSE 0 END AS bit)                              AS ProjectExists,
                 a.AppraisalType                                                  AS AppraisalType,
-                CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
-                                       WHERE ap.AppraisalId = @AppraisalId
-                                         AND ap.PropertyType IN ('U','LSU'))
-                          THEN 1 ELSE 0 END AS bit)                              AS HasCondo,
-                CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
-                                       WHERE ap.AppraisalId = @AppraisalId
-                                         AND ap.PropertyType = 'MAC')
-                          THEN 1 ELSE 0 END AS bit)                              AS HasMachine,
-                CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
-                                       WHERE ap.AppraisalId = @AppraisalId
-                                         AND ap.PropertyType IN ('L','B','LB','LSL','LSB','LS'))
-                          THEN 1 ELSE 0 END AS bit)                              AS HasLandBuilding
+            """ + StandardFormFlagsSql + """
+
             -- The FROM is load-bearing, not decoration: without it this is a bare SELECT that returns a row
             -- for ANY id, every flag false, so the `row is null` guard below could never fire and a missing
             -- appraisal came back as "no applicable form" instead of "not found". Those mean different
@@ -86,15 +77,42 @@ public sealed class AppraisalSummaryDataProvider(
         }
 
         // Additive fan-out (Standard): fixed order land-building, condo, machine
-        var keys = new List<string>(3);
-        if (row.HasLandBuilding) keys.Add("appraisal-summary-land-building");
-        if (row.HasCondo) keys.Add("appraisal-summary-condo");
-        if (row.HasMachine) keys.Add("appraisal-summary-machine");
+        var keys = StandardFormKeys(row.HasLandBuilding, row.HasCondo, row.HasMachine);
 
         logger.LogInformation(
             "appraisal-summary dispatch for {AppraisalId}: [{Keys}]",
             appraisalId, string.Join(", ", keys));
 
+        return keys;
+    }
+
+    /// <summary>
+    /// The three "which property types are present" flags of the Standard fan-out. Shared with
+    /// <c>AppraisalBookDataProvider</c> so the book's internal front page can never pick different forms
+    /// than this report does.
+    /// </summary>
+    internal const string StandardFormFlagsSql = """
+        CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
+                               WHERE ap.AppraisalId = @AppraisalId
+                                 AND ap.PropertyType IN ('U','LSU'))
+                  THEN 1 ELSE 0 END AS bit)                              AS HasCondo,
+        CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
+                               WHERE ap.AppraisalId = @AppraisalId
+                                 AND ap.PropertyType = 'MAC')
+                  THEN 1 ELSE 0 END AS bit)                              AS HasMachine,
+        CAST(CASE WHEN EXISTS (SELECT 1 FROM appraisal.AppraisalProperties ap
+                               WHERE ap.AppraisalId = @AppraisalId
+                                 AND ap.PropertyType IN ('L','B','LB','LSL','LSB','LS'))
+                  THEN 1 ELSE 0 END AS bit)                              AS HasLandBuilding
+        """;
+
+    /// <summary>Standard fan-out order: land-building, condo, machine.</summary>
+    internal static List<string> StandardFormKeys(bool hasLandBuilding, bool hasCondo, bool hasMachine)
+    {
+        var keys = new List<string>(3);
+        if (hasLandBuilding) keys.Add("appraisal-summary-land-building");
+        if (hasCondo) keys.Add("appraisal-summary-condo");
+        if (hasMachine) keys.Add("appraisal-summary-machine");
         return keys;
     }
 

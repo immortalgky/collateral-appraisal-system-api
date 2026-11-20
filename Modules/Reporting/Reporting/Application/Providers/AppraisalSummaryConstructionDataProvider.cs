@@ -707,6 +707,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
             TotalAppraisalValue = reportTotalAppraisalValue,
             BuildingCoverageAmount = common.BuildingCoverageAmount,
             ForcedSaleValue     = common.ForcedSaleValue,
+            ForceSaleRate     = common.ForceSaleRate,
             Condition           = common.Condition,
             Remark              = common.Remark,
             LandOwner           = null,
@@ -755,6 +756,7 @@ public sealed class AppraisalSummaryConstructionDataProvider(
 
             // ── Appraiser / sign-off ─────────────────────────────────────────────
             AppraiserComment          = common.AppraiserComment,
+            AdditionalAssumptions          = common.AdditionalAssumptions,
             AppraisalStaffName        = common.StaffName,
             AppraisalStaffPosition    = common.StaffPosition,
             AppraisalCheckerName      = common.CheckerName,

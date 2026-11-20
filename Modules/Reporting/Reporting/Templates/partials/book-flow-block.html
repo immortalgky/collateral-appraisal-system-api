@@ -1,0 +1,168 @@
+{{~ # Partial: the block / project book (model.body_type == "block"): 1 ทำเล, 2 รายละเอียดโครงการ, 3 แบบบ้าน (แบบห้องชุด), 4 การประเมินมูลค่า, 5 สรุปราคาประเมินรายแปลง, 6 ข้อมูลตลาด, 7 สรุป. Mock tab B5. ~}}
+{{ include 'partials/book-funcs' }}
+{{ blk = model.block_section }}{{ pj = blk.project }}{{ land = blk.land }}
+{{ unit_word = blk.is_condo ? 'ห้อง' : 'หลัง' }}{{ model_word = blk.is_condo ? 'แบบห้องชุด' : 'แบบบ้าน' }}
+
+{{ part_kind = 'body'; part_id = 's1'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
+<div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ vk 'ที่ตั้งโครงการ' (model.collateral_address ?? model.collateral_location) }}
+  {{ vk 'พิกัด' ((gps pj.latitude pj.longitude) ?? model.gps) }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>1.2</span><span>สภาพแวดล้อมและการคมนาคม</span></div>
+<div class="vk">
+  {{ vk 'สภาพแวดล้อม' (land ? land.environment : null) }}
+  {{ vk 'ถนนผ่านหน้าโครงการ' (land ? land.road_in_front : null) }}
+  {{ vk 'การเดินทาง' (land ? land.transportation : null) }}
+  {{ vk 'เขตทางกว้าง' (land ? (f2 land.right_of_way_width) : null) 'เมตร' }}
+</div>
+</div>
+</div>
+
+{{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>2.</span><span>รายละเอียดโครงการ</span></div>
+{{ pic = appx_img 'LAND_PLAN' 'BLUEPRINT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk bk-keep">
+  {{ vk 'ชื่อโครงการ' pj.project_name }}
+  {{ vk 'เจ้าของโครงการ' pj.developer }}
+  {{ vkm 'ประสบการณ์ผู้พัฒนาโครงการ' }}
+  {{ vk 'เนื้อที่โครงการ' pj.land_area_text }}
+  {{ vk 'ความคืบหน้าการก่อสร้างโดยรวม' (fx pj.construction_progress_percent) '%' }}
+  {{ vkm 'ความคืบหน้าสาธารณูปโภคในโครงการ' }}
+  {{ vkm 'บ้านตัวอย่าง' }}
+  {{ vk 'จำนวนแปลงขาย' pj.unit_for_sale_count (blk.is_condo ? 'ห้อง' : 'แปลง') }}
+  {{ vk ('จำนวน' + model_word) blk.models.size 'แบบ' }}
+  {{ vk 'วันที่เปิดขายโครงการ' pj.sale_launch_date }}
+  {{ vkm 'อัตราการเข้าอยู่อาศัย' }}
+  {{ vk 'หน่วยที่ประเมินครั้งนี้' (pj.appraised_unit_count != null ? pj.appraised_unit_count + ' ยูนิต' + (pj.appraised_unit_share_pct != null ? ' = ' + (fx pj.appraised_unit_share_pct) + '%' : '') : null) }}
+  {{ vk 'สาธารณูปโภค' (pj.utilities ?? (land ? land.public_utility : null)) }}
+  {{ vk 'สิ่งอำนวยความสะดวก' pj.facilities }}
+</div>
+{{ if land }}
+<div class="vk-sub">ที่ดินโครงการ</div>
+<div class="vk bk-keep">
+  {{ tl = '' }}{{ for t in land.titles }}{{ tl = tl == '' ? t : tl + "\n" + t }}{{ end }}
+  {{ vk 'เอกสารสิทธิ์' tl }}
+  {{ vk 'ตรวจสอบจาก' land.check_method }}
+  {{ vkm 'ถนนสายหลัก' }}
+  {{ vk 'ทรัพย์สินอยู่ในพื้นที่' land.land_zone }}
+  {{ vk 'แนวโน้มความเจริญ' land.anticipation }}
+  {{ vkm 'โครงการรัฐ / สถานที่มีผลต่อราคา / มลพิษ' }}
+  {{ vk 'ผังเมือง' land.urban_planning }}
+  {{ vk 'สีผังเมือง' land.urban_planning_color }}
+  {{ vkm 'กฎหมายควบคุมอาคาร' }}
+  {{ vk 'แนวเวนคืน' land.expropriation }}
+  {{ vk 'การรอนสิทธิ' (with_rm land.eviction land.eviction_remark) }}
+</div>
+{{ end }}
+{{ if blk.assumptions.size > 0 }}
+<div class="vk-sub">เงื่อนไขการปรับราคา</div>
+<div class="vk bk-keep">{{ for a in blk.assumptions }}{{ vk a.label a.value }}{{ end }}</div>
+{{ end }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's3'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>3.</span><span>{{ model_word }}</span></div>
+<table class="vt">
+  <thead><tr><th style="width:40px;">ลำดับ</th><th>{{ model_word }}</th><th>ประเภท</th><th>นอน/น้ำ</th><th>พื้นที่ใช้สอย<br/>(ตร.ม.)</th>{{ if !blk.is_condo }}<th>ที่ดินมาตรฐาน<br/>(ตร.ว.)</th>{{ end }}<th>จำนวน</th></tr></thead>
+  <tbody>
+    {{ for m in blk.models }}
+    <tr><td class="c">{{ m.sequence }}</td><td>{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</td><td>{{ m.building_type }}{{ if m.number_of_floors }} {{ fx m.number_of_floors }} ชั้น{{ end }}</td><td>{{ m.room_layout }}</td><td class="r">{{ nz (f2 m.standard_usable_area) }}</td>{{ if !blk.is_condo }}<td class="r">{{ nz (f2 m.standard_land_area) }}</td>{{ end }}<td class="r">{{ m.unit_count }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ if !blk.is_condo }}
+{{ for m in blk.models }}
+<div class="vk-head"><span>{{ model_word }}รายการที่ {{ m.sequence }}</span><span>{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</span></div>
+<div class="vk bk-keep">
+  {{ vk 'ประเภทอาคาร / จำนวนชั้น' (m.building_type ? m.building_type + (m.number_of_floors ? ' ' + (fx m.number_of_floors) + ' ชั้น' : '') : null) }}
+  {{ vk 'สภาพ / อายุ' ((m.is_under_construction == true ? 'อยู่ระหว่างก่อสร้าง' : (m.is_under_construction == false ? 'ก่อสร้างเสร็จแล้ว' : '-')) + (m.building_age != null ? ' / ' + m.building_age + ' ปี' : '')) }}
+  {{ vk 'โครงสร้าง / โครงหลังคา / หลังคา' (m.structure ? m.structure + (m.roof_frame ? ' / ' + m.roof_frame : '') + (m.roof ? ' / ' + m.roof : '') : null) }}
+  {{ vk 'พื้น' m.floor_material }}
+  {{ vk 'พื้นห้องน้ำ' m.bathroom_floor_material }}
+  {{ vk 'ผนังภายใน / ภายนอก / ฝ้าเพดาน' (m.interior_wall ? m.interior_wall + (m.exterior_wall ? ' / ' + m.exterior_wall : '') + (m.ceiling ? ' / ' + m.ceiling : '') : null) }}
+  {{ vkm 'ประตู / หน้าต่าง' }}
+  {{ vkm 'ห้องครัว / เครื่องปรับอากาศ' }}
+  {{ vkm 'ห้องน้ำ / สุขภัณฑ์' }}
+  {{ vk 'การแบ่งพื้นที่ใช้สอย' m.room_layout }}
+  {{ vk 'การตกแต่ง' m.decoration }}
+</div>
+{{ if m.costs.size > 0 }}
+<table class="vt">
+  <thead><tr><th>รายละเอียด</th><th>พื้นที่ (ตร.ม.)</th><th>ราคา/ตร.ม.</th><th>มูลค่า (บาท)</th><th>ค่าเสื่อม (%)</th><th>มูลค่าหลังหักค่าเสื่อม</th></tr></thead>
+  <tbody>
+    {{ for c in m.costs }}<tr><td>{{ c.description }}</td><td class="r">{{ f2 c.area }}</td><td class="r">{{ f2 c.price_per_sqm }}</td><td class="r">{{ f2 c.price_before_depreciation }}</td><td class="r">{{ f2 c.total_depreciation_pct }}</td><td class="r">{{ f2 c.price_after_depreciation }}</td></tr>{{ end }}
+    {{ if m.coverage_amount != null }}<tr class="tot"><td colspan="5">มูลค่าประกันภัย (ปัดเศษ)</td><td class="r">{{ f2 m.coverage_amount }}</td></tr>{{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{ end }}
+{{ end }}
+</div>
+
+{{ val_no = '4'; val_id = 's4'; val_title = 'การประเมินมูลค่า'; val_has_more = true; include 'partials/book-valuation' }}{{ val_has_more = false }}
+<div class="bk">
+<div class="bk-h2"><span>{{ val_no }}.{{ multi6 ? g6 + 1 : n6 + 1 }}</span><span>สรุปราคาประเมินรายแบบ</span></div>
+{{ if blk.analysis_remark }}<p class="bk-p">{{ blk.analysis_remark }}</p>{{ end }}
+<table class="vt">
+  <thead><tr><th>{{ model_word }}</th>{{ if !blk.is_condo }}<th>ที่ดินมาตรฐาน<br/>(ตร.ว.)</th>{{ end }}<th>พื้นที่ใช้สอย<br/>(ตร.ม.)</th><th>ราคาขายโครงการ<br/>(เริ่มต้น)</th><th>ราคาประเมิน<br/>(บาท/{{ unit_word }})</th><th>มูลค่าประกันภัย<br/>(บาท)</th></tr></thead>
+  <tbody>
+    {{ for m in blk.models }}
+    <tr><td>{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</td>{{ if !blk.is_condo }}<td class="r">{{ nz (f2 m.standard_land_area) }}</td>{{ end }}<td class="r">{{ nz (f2 m.standard_usable_area) }}</td><td class="r">{{ nz (f0 m.starting_price_min) }}</td><td class="r">{{ nz (f0 m.appraised_value) }}</td><td class="r">{{ nz (f0 m.coverage_amount) }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{~ # Each model's own price analysis (WQS / Sale Grid), one per model, in the same order as the table. ~}}
+{{ for m in blk.models }}{{ if m.analyses && m.analyses.size > 0 }}<div class="vm">{{ subs = m.analyses }}{{ include 'partials/book-sub-analyses' }}</div>{{ end }}{{ end }}
+</div>
+
+{{ part_kind = 'body'; part_id = 's5'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>5.</span><span>{{ blk.is_condo ? 'สรุปราคาประเมินรายยูนิต' : 'สรุปราคาประเมินรายแปลง' }} เพื่อสนับสนุนรายย่อยโครงการ</span></div>
+<style>
+  .bku-table { width:100%; border-collapse:collapse; font-size:7.5pt; table-layout:fixed; }
+  .bku-table th, .bku-table td { border:1px solid #000; padding:2px 3px; overflow-wrap:anywhere; }
+  .bku-table th { background:#e7e7e7; text-align:center; font-weight:700; }
+  .bku-table thead { display:table-header-group; }
+  .bku-table tr { break-inside:avoid; }
+  .bku-table td.c { text-align:center; }
+  .bku-table td.r { text-align:right; white-space:nowrap; }
+</style>
+{{ if blk.building_units.size > 0 }}
+<table class="bku-table">
+  <thead><tr><th style="width:34px;">ลำดับ</th><th style="width:58px;">แปลงเลขที่</th><th style="width:58px;">บ้านเลขที่</th><th>แบบบ้าน</th><th style="width:52px;">เนื้อที่ดิน<br/>(ตร.วา)</th><th style="width:52px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th><th style="width:70px;">ราคาขาย<br/>(บาท)</th><th style="width:70px;">ราคาประเมิน<br/>(บาท)</th><th style="width:70px;">ราคาบังคับขาย<br/>(บาท)</th><th style="width:70px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th></tr></thead>
+  <tbody>
+    {{ for u in blk.building_units }}
+    <tr><td class="c">{{ u.sequence }}</td><td class="c">{{ u.plot_number }}</td><td class="c">{{ u.house_number }}</td><td class="c">{{ u.model_type }}</td><td class="c">{{ f2 u.land_area }}</td><td class="c">{{ f2 u.usable_area }}</td><td class="r">{{ f0 u.selling_price }}</td><td class="r">{{ f0 u.appraisal_value }}</td><td class="r">{{ f0 u.forced_sale_value }}</td><td class="r">{{ f0 u.coverage_amount }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{ if blk.condo_units.size > 0 }}
+<table class="bku-table">
+  <thead><tr><th style="width:30px;">ลำดับ</th><th style="width:30px;">ชั้นที่</th><th style="width:40px;">อาคาร</th><th style="width:52px;">ห้องชุดเลขที่</th><th>แบบห้องชุด</th><th style="width:44px;">ห้องชุด</th><th style="width:48px;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th><th style="width:66px;">ราคาขาย<br/>โครงการ (บาท)</th><th style="width:66px;">ราคาประเมิน<br/>(บาท)</th><th style="width:58px;">ราคา/ตร.ม.<br/>(บาท)</th><th style="width:66px;">ราคาบังคับขาย<br/>(บาท)</th><th style="width:66px;">มูลค่าประกัน<br/>อัคคีภัย (บาท)</th></tr></thead>
+  <tbody>
+    {{ for u in blk.condo_units }}
+    <tr><td class="c">{{ u.sequence }}</td><td class="c">{{ u.floor }}</td><td class="c">{{ u.tower_name }}</td><td class="c">{{ u.condo_registration_number }}</td><td class="c">{{ u.model_type }}</td><td class="c">{{ u.room_number }}</td><td class="c">{{ f2 u.usable_area }}</td><td class="r">{{ f0 u.selling_price }}</td><td class="r">{{ f0 u.appraisal_value }}</td><td class="r">{{ f2 u.price_per_sqm }}</td><td class="r">{{ f0 u.forced_sale_value }}</td><td class="r">{{ f0 u.coverage_amount }}</td></tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{ if blk.building_units.size == 0 && blk.condo_units.size == 0 }}<p class="bk-p"><span class="na">-</span></p>{{ end }}
+</div>
+
+{{ if model.comparison_sections.size > 0 }}
+{{ part_kind = 'body'; part_id = 's6'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>6.</span><span>ข้อมูลตลาดเปรียบเทียบ</span></div>
+<div class="vm">{{ for sec in model.comparison_sections }}{{ cs = sec }}{{ include 'partials/section-comparison' }}{{ end }}</div>
+</div>
+{{ end }}
+
+{{ concl_no = model.comparison_sections.size > 0 ? '7.' : '6.'; concl_id = 's7'; concl_machine = false; concl_construction = false; concl_block = true; include 'partials/book-conclusion' }}

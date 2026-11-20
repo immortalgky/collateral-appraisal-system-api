@@ -43,5 +43,6 @@ public record SaveProjectDraftCommand(
     decimal? ConstructionProgressPercent = null,
     // Type-specific
     string? BuiltOnTitleDeedNumber = null,
-    DateTime? LicenseExpirationDate = null
+    DateTime? LicenseExpirationDate = null,
+    string? LicenseNumber = null
 ) : ICommand<SaveProjectDraftResult>, ITransactionalCommand<IAppraisalUnitOfWork>;

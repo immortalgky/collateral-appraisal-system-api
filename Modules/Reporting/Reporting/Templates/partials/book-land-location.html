@@ -1,0 +1,66 @@
+{{~ # Partial: 1.2-1.6 of the land book (environment, roads, utilities, problems, position check) for every land in model.all_lands. Needs multi_land / multi_grp and the helper functions. ~}}
+<div class="bk-keep">
+<div class="bk-h2"><span>1.2</span><span>สภาพแวดล้อมและการใช้ประโยชน์</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ vk 'ทรัพย์สินอยู่ในพื้นที่' ls.land_zone_type }}
+  {{ vk 'สภาพแวดล้อม' ls.environment_type }}
+  {{ cp = cplan ls.urban_planning_color ls.urban_planning_type }}{{ if cp }}{{ vk 'ผังเมือง' cp }}{{ end }}
+  {{ vk 'ความเจริญของพื้นที่' ls.property_anticipation_type }}
+  {{ vk 'ความเหมาะสมต่อการพัฒนา' ls.development_suitability }}
+  {{ vk 'การใช้ประโยชน์ที่ดิน' ls.land_use_type }}
+</div>
+{{ end }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>1.3</span><span>การคมนาคมและสิทธิการใช้ทาง</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ vk 'ถนนผ่านหน้าทรัพย์สิน' ls.road_pass_in_front_of_land }}
+  {{ vk 'ลักษณะผิวจราจร' ls.road_surface_type }}
+  {{ vk 'จำนวนช่องจราจร' ls.number_of_lanes 'ช่องจราจร' }}
+  {{ vk 'ผิวจราจรกว้าง' (f2 ls.carriageway_width) 'เมตร' }}
+  {{ vk 'เขตทางกว้าง' (f2 ls.right_of_way_width) 'เมตร' }}
+  {{ vk 'หน้าที่ดินติดถนนกว้าง' (f2 ls.road_frontage) 'เมตร' }}
+  {{ vk 'จำนวนด้านที่ติดถนน' ls.number_of_sides_facing_road 'ด้าน' }}
+  {{ vk 'สิทธิทางเข้าออก' ls.land_entrance_exit_type }}
+  {{ vk 'การเข้าถึงที่ดิน' (with_rm ls.land_accessibility ls.land_accessibility_remark) }}
+  {{ vk 'การเดินทาง' ls.transportation_access_type }}
+</div>
+{{ end }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>1.4</span><span>ระบบสาธารณูปโภคผ่านหน้าทรัพย์สิน</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ vk 'สาธารณูปโภค' ls.public_utility_type }}
+</div>
+{{ end }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>1.5</span><span>ปัญหาสภาพแวดล้อมบริเวณใกล้เคียงที่มีผลกระทบต่อทรัพย์สิน</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ env_probs ls }}
+</div>
+{{ end }}
+</div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>1.6</span><span>การตรวจสอบตำแหน่งที่ตั้งทรัพย์สิน</span></div>
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ vk 'ตำแหน่งที่ดิน' ((cb (ls.is_land_location_verified == true) 'ถูกต้อง') + (cb (ls.is_land_location_verified == false) 'ไม่ถูกต้อง') + (ls.is_land_location_verified == false && ls.land_location_remark != null && (ls.land_location_remark | string.strip) != '' ? '<span class="rm">หมายเหตุ : ' + ls.land_location_remark + '</span>' : '')) }}
+  {{ vk 'ตรวจสอบจาก' ls.checked_from }}
+  {{ vk 'หมุดหลักเขต' ls.boundary_marker }}
+</div>
+{{ end }}
+</div>

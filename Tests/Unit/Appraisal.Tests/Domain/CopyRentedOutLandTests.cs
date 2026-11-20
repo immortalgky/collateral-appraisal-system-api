@@ -122,4 +122,49 @@ public class CopyRentedOutLandTests
         Assert.Single(copy.RentalInfo!.ScheduleEntries);
         Assert.Single(copy.RentalInfo.ScheduleOverrides);
     }
+
+    // A condo (U) rented out to others carries its lease & rental the same way land does.
+    private static void MakeCondoRentedOut(AppraisalProperty property, bool rentedOut = true)
+    {
+        property.CondoDetail!.Update(isRentedOut: rentedOut);
+
+        var lease = LeaseAgreementDetail.Create(property.Id);
+        lease.Update(lesseeName: "Acme Co", isLeaseRegistered: true, isLeaseholdPledgeable: false);
+        property.SetLeaseAgreementDetail(lease);
+
+        var rental = RentalInfo.Create(property.Id);
+        rental.Update(numberOfYears: 3, contractRentalFeePerYear: 12000m, growthRateType: "Period");
+        rental.AddScheduleEntry(year: 1, contractStart: new DateTime(2026, 1, 1), contractEnd: new DateTime(2026, 12, 31),
+            upFront: 1000m, contractRentalFee: 12000m, totalAmount: 13000m, growthRatePercent: 5m);
+        property.SetRentalInfo(rental);
+    }
+
+    [Fact]
+    public void CopyProperty_RentedOutCondo_CopiesFlagLeaseAndRental()
+    {
+        var appraisal = CreateAppraisal();
+        var source = appraisal.AddCondoProperty();
+        MakeCondoRentedOut(source);
+
+        var copy = appraisal.CopyProperty(source.Id);
+
+        Assert.True(copy.CondoDetail!.IsRentedOut);
+        Assert.NotSame(source.LeaseAgreementDetail, copy.LeaseAgreementDetail);
+        Assert.Equal("Acme Co", copy.LeaseAgreementDetail!.LesseeName);
+        Assert.True(copy.LeaseAgreementDetail.IsLeaseRegistered);
+        Assert.Single(copy.RentalInfo!.ScheduleEntries);
+    }
+
+    [Fact]
+    public void CopyProperty_NonRentedCondo_DoesNotCopyLeaseOrRental()
+    {
+        var appraisal = CreateAppraisal();
+        var source = appraisal.AddCondoProperty();
+        MakeCondoRentedOut(source, rentedOut: false);
+
+        var copy = appraisal.CopyProperty(source.Id);
+
+        Assert.Null(copy.LeaseAgreementDetail);
+        Assert.Null(copy.RentalInfo);
+    }
 }

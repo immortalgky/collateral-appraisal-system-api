@@ -1,0 +1,132 @@
+/* ═══ BOOK BODY (numbered sections: label : value pages) ═══════════════════════════════════════════
+   Mirrors docs/appraisal-book-enhancement/mock.html. Included LAST in the <style> so it wins over the shared summary rules.
+   NOTE: keep this file free of the Scriban double-brace token (it executes even inside CSS). The page margins
+   (24mm top/bottom, 15mm sides) leave room for the running header/footer that PdfSharpAssembler stamps on. */
+.bk { font-size:10.5pt; line-height:1.6; color:#000; }
+.bk-title { text-align:center; font-weight:700; font-size:13pt; margin:0 0 12px; }
+.bk-h1 { font-weight:700; font-size:13pt; margin:0 0 6px; display:flex; gap:10px; break-after:avoid; }
+.bk-h1 + .bk-h2 { margin-top:6px; }
+.bk-h2 { font-weight:700; font-size:11pt; margin:14px 0 4px; display:flex; gap:10px; padding-left:14px; break-after:avoid; }
+.bk-h2 > span:first-child { min-width:26px; }
+.bk-h2.sub { padding-left:28px; font-size:10.5pt; }
+.bk-h2.sub > span:first-child { min-width:40px; }
+.bk-cont { font-weight:700; font-size:10pt; color:#444; margin:0 0 6px; padding-left:14px; }
+.bk-p { line-height:1.75; margin:2px 0 6px; padding-left:14px; white-space:pre-line; }
+.bk-p.miss { color:#C00000; }
+.bk-tag { font-size:9.5pt; color:#444; margin:8px 0 0 14px; font-weight:700; }
+.bk-keep { break-inside:avoid; }
+
+/* label : value — 220px label column, aligned colons, the unit in its own column */
+.vk-sub { font-weight:700; margin:10px 0 2px; font-size:10.5pt; padding-left:14px; break-after:avoid; }
+.vk-head { display:grid; grid-template-columns:234px 1fr; font-weight:700; margin:8px 0 2px; font-size:10.5pt; padding-left:14px; break-after:avoid; }
+.vk-head > span:first-child { text-decoration:underline; }
+.vk { display:grid; grid-template-columns:220px 14px 1fr; line-height:1.75; font-size:10.5pt; padding-left:14px; }
+.vk > .l { grid-column:1; }
+.vk > .c { grid-column:2; }
+.vk > .v { grid-column:3; min-width:0; overflow-wrap:anywhere; white-space:pre-line; }
+.vk .u { display:inline-grid; grid-template-columns:110px auto; column-gap:10px; }
+/* prob remark: its own line under the options, wrapping inside the value column. */
+.vk .rm { display:block; }
+/* A field the system does not store: the whole row (label, colon, value, unit) is red. */
+.vk .miss, .vk .na, .bk .miss, .bk .na { color:#C00000; }
+
+table.vt { width:calc(100% - 14px); margin:4px 0 8px 14px; border-collapse:collapse; font-size:9.5pt; }
+table.vt th, table.vt td { border:1px solid #000; padding:2px 6px; vertical-align:top; }
+table.vt th { background:#e7e7e7; text-align:center; font-weight:700; }
+table.vt td.r { text-align:right; white-space:nowrap; }
+table.vt td.c { text-align:center; }
+table.vt tr.tot td { font-weight:700; }
+table.vt tr.ded td { color:#C00000; }
+table.vt tr.sub td { font-weight:700; background:#f3f3f3; }
+table.vt tr { break-inside:avoid; }
+
+.bk-img { margin:6px auto 8px; text-align:center; break-inside:avoid; }
+.bk-img img { max-width:78%; max-height:330px; border:1px solid #ccc; }
+.bk-img .cap { font-size:9pt; color:#444; margin-top:2px; }
+
+.bk-bld { page-break-before:always; break-before:page; }
+.bk-bld .bk-bld-img { margin:0 auto 6px; }
+.bk-bld .bk-bld-img img { max-height:165px; max-width:60%; border:1px solid #ccc; }
+
+.bk-dev-photos { display:flex; justify-content:center; gap:8px; margin:0 0 6px; }
+.bk-dev-photos img { max-height:165px; max-width:32%; object-fit:contain; border:1px solid #ccc; }
+.vk-item { font-weight:700; margin:10px 0 0; padding-left:14px; line-height:1.75; break-after:avoid; }
+
+.bk-band { background:#ececec; text-align:center; padding:6px 10px; margin:12px 0 16px 14px; line-height:1.7; break-inside:avoid; }
+
+/* วิธีที่ใช้สรุป / (อ้างอิง) */
+.bk-ref { border:1px solid #b08a1c; background:#fbf3d9; color:#5c4300; padding:4px 10px; margin:14px 0 10px; font-weight:700; break-after:avoid; }
+.bk-sum { padding-left:14px; display:grid; gap:2px; break-inside:avoid; }
+.bk-sum > div { display:grid; grid-template-columns:1fr 60px 120px 40px; line-height:1.9; }
+.bk-sum > div > span:nth-child(3) { text-align:right; padding-right:8px; }
+.bk-sum > .b { font-weight:700; background:#f3f3f3; }
+.bk-sum > .g { background:#f3f3f3; }
+
+/* เนื้อหาของวิธีประเมินเดิม (ตารางของแต่ละวิธีคงเดิม): หัวข้อตัวเลขของ section นี้ทดแทนแถบหัวและแถบแนวทางของวิธี */
+.vm .section-bar, .vm .method-banner { display:none; }
+.vm { margin:0 0 6px; }
+.vm table.grid { font-size:8pt; }
+.vm table.grid tr { break-inside:avoid; }
+.vm table.grid tr.bh { break-after:avoid; }
+/* Keep a method heading and its table head with the first rows: a table never starts at a page bottom with just 1-2 rows. */
+.vm table.grid thead tr, .vm table.grid tbody tr:nth-child(-n+3) { break-after:avoid; }
+.bk-p:has(+ .bk-h2) { break-after:avoid; }
+
+/* สรุปมูลค่า + ผู้ลงนาม */
+.bk-concl { border:1px solid #9aa3b5; margin:14px 0 16px; break-inside:avoid; }
+.bk-concl .hero { background:#eef0f4; padding:12px 16px; text-align:center; }
+.bk-concl .l { font-weight:700; }
+.bk-concl .hero .v { font-size:20pt; font-weight:700; line-height:1.4; }
+.bk-concl .t { font-size:9.5pt; color:#333; }
+.bk-concl .cells { display:grid; border-top:1px solid #9aa3b5; }
+.bk-concl .cells.only { border-top:0; }
+.bk-concl .cells > div { padding:8px 12px; text-align:center; }
+.bk-concl .cells > div + div { border-left:1px solid #9aa3b5; }
+.bk-concl .cells > div:nth-child(3n+1) { border-left:0; }
+.bk-concl .cells > div:nth-child(n+4) { border-top:1px solid #9aa3b5; }
+.bk-concl .cells .v { font-size:12.5pt; font-weight:700; }
+/* Section 7 value box: three ruled columns (label two lines : amount in figures and words), thin rules on the top, between rows and at the bottom, no vertical borders. */
+.bk-val { width:calc(100% - 14px); margin:10px 0 14px 14px; border-collapse:collapse; break-inside:avoid; }
+.bk-val tr { background:#f3f3f3; }
+.bk-val td { padding:6px 10px; vertical-align:top; border-top:1px solid #777; line-height:1.5; }
+.bk-val tr:last-child td { border-bottom:1px solid #777; }
+.bk-val td.k { width:34%; }
+.bk-val td.c { width:14px; text-align:center; padding-left:0; padding-right:0; }
+.bk-val td.v { text-align:right; }
+.bk-val .b { font-weight:700; }
+/* External สรุปผลการประเมินมูลค่าทรัพย์สิน page: bold labels, the property-detail blocks (continuation lines start flush with the bold title), and the shaded value box. */
+.vk.bk-ext > .l { font-weight:700; }
+.vk.bk-ext .pb { margin-top:4px; }
+.bk-valbox { background:#f3f3f3; border:1px solid #9aa3b5; margin:16px 0 0; padding:8px 12px; break-inside:avoid; }
+.bk-valbox .t { font-weight:700; text-align:center; margin-bottom:4px; }
+.bk-valbox .bk-val { width:100%; margin:0; }
+.bk-valbox .bk-val tr { background:none; }
+.bk-valbox .bk-val td, .bk-valbox .bk-val tr:last-child td { border:0; }
+
+/* สารบัญ */
+.bk-toc { display:flex; align-items:baseline; gap:6px; line-height:1.9; }
+.bk-toc i { flex:1; border-bottom:1px dotted #777; }
+.bk-toc.hd { font-weight:700; }
+.bk-toc-sub { margin-top:16px; line-height:1.8; padding-left:14px; }
+.bk-toc-sub div { padding-left:22px; }
+
+/* ภาคผนวก / เอกสารแนบท้าย */
+.bk-divider { text-align:center; font-size:22pt; font-weight:700; margin:6px 0 18px; }
+/* A divider page of its own: just the title, centred both ways (230mm = the A4 page less the 24mm running header/footer margins, with a little spare so it never spills to a second page). */
+.bk-divider-page { height:230mm; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.bk-divider-page .bk-divider { font-size:32pt; margin:0; }
+.bk-group { text-align:center; font-weight:700; font-size:11pt; margin:10px 0 4px; break-after:avoid; }
+.bk .appendix-grid { margin:0 auto; max-width:180mm; padding:8px 0 0; }
+/* a lone (or single-column) image fills the content width and the page height left above the title block (249mm printable less the block) */
+.bk .appendix-grid.cols-1 img, .bk .appendix-grid .cell:only-child img { width:100%; max-height:850px; object-fit:contain; border:0; }
+/* the one-row title block under an appendix image group (same look as the one the assembler stamps on PDF pages: BookChrome.OverlayHtml) */
+.tb { border-collapse:collapse; width:100%; table-layout:fixed; height:9mm; margin-top:6px; color:#000; }
+.tb td { border:0.3mm solid #000; padding:0.8mm 2mm; vertical-align:middle; }
+.tb td.l { width:15%; text-align:center; font-size:9pt; line-height:1.2; }
+.tb td.n { width:26%; }
+.tb td.v { font-weight:700; font-size:11pt; line-height:1.25; text-align:left; }
+.bk .tb { break-inside:avoid; break-before:avoid; }
+
+
+/* Landscape pages inside the numbered book (the cost-machine table): the same 24mm top/bottom the running header/footer need. */
+@page landscape { size:A4 landscape; margin:24mm 10mm; }

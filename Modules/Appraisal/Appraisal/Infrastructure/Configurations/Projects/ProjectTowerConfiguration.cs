@@ -23,8 +23,11 @@ public class ProjectTowerConfiguration : IEntityTypeConfiguration<ProjectTower>
 
         // Condition & Obligation
         builder.Property(e => e.ConditionType).HasMaxLength(100);
-        builder.Property(e => e.HasObligation).HasMaxLength(100);
+        builder.Property(e => e.ObligationType)
+            .HasConversion(new Appraisal.Infrastructure.Converters.TolerantCodeListConverter()) // a bare legacy '01' reads as ['01']
+            .HasColumnType("nvarchar(500)");
         builder.Property(e => e.ObligationDetails).HasMaxLength(500);
+        builder.Property(e => e.MortgageDetails).HasMaxLength(500);
         builder.Property(e => e.DocumentValidationType).HasMaxLength(100);
 
         // Location

@@ -1,0 +1,26 @@
+{{~ # Partial: เอกสารแนบท้าย — a divider page (the word alone; the TOC lists what follows), then the groups whose TYPE is a copy of a document (is_attachment): their images, and their PDFs merged in as they are (slot markers). ~}}
+{{ part_kind = 'body'; part_id = 'attach'; include 'partials/book-part' }}
+<div class="bk bk-divider-page">
+<div class="bk-divider">เอกสารแนบท้าย</div>
+</div>
+{{ part_kind = 'body'; part_id = ''; include 'partials/book-part' }}
+{{ for group in model.appendix_section.groups }}
+{{ if group.is_attachment }}
+{{ if group.images.size > 0 }}
+<div class="bk bk-keep">
+  <div class="appendix-grid cols-{{ group.layout_columns }}">
+    {{ for img in group.images }}
+    <div class="cell">
+      {{ if img.img_src }}<img alt="" src="{{ img.img_src }}"/>{{ end }}
+      {{ if img.caption }}<div class="cap">{{ img.caption }}</div>{{ end }}
+    </div>
+    {{ end }}
+  </div>
+  {{ tb_caption = group.type_name_thai; include 'partials/book-title-block' }}
+</div>
+{{ end }}
+{{ if model.attachments_by_slot[group.slot_name] }}
+<!-- SLOT: {{ group.slot_name }} -->{{ if group.type_name_thai }}<!-- CAPTION: {{ group.type_name_thai }} -->{{ end }}<!-- pdf-margin-y:24mm -->
+{{ end }}
+{{ end }}
+{{ end }}

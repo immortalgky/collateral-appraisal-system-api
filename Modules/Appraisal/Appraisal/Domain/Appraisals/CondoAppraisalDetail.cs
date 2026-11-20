@@ -41,17 +41,21 @@ public class CondoAppraisalDetail : Entity<Guid>
     public bool? IsOwnerVerified { get; private set; }
     public string? BuildingConditionType { get; private set; }
     public string? BuildingConditionTypeOther { get; private set; }
-    public string? HasObligation { get; private set; }
+    public List<string>? ObligationType { get; private set; }
     public string? ObligationDetails { get; private set; }
+    public string? MortgageDetails { get; private set; }
     public string? DocumentValidationResultType { get; private set; }
 
     // Location Details
     public string? LocationType { get; private set; }
+    public string? LocationRemark { get; private set; }
     public string? Street { get; private set; }
     public string? Soi { get; private set; }
     public decimal? DistanceFromMainRoad { get; private set; }
-    public decimal? AccessRoadWidth { get; private set; }
-    public short? RightOfWay { get; private set; }
+    // CarriagewayWidth = ผิวจราจรกว้าง (metres); RightOfWayWidth = เขตทางกว้าง (metres); NumberOfLanes = จำนวนช่องจราจร
+    public decimal? CarriagewayWidth { get; private set; }
+    public decimal? RightOfWayWidth { get; private set; }
+    public short? NumberOfLanes { get; private set; }
     public string? RoadSurfaceType { get; private set; }
     public string? RoadSurfaceTypeOther { get; private set; }
     public List<string>? PublicUtilityType { get; private set; }
@@ -63,6 +67,9 @@ public class CondoAppraisalDetail : Entity<Guid>
     public string? LandFillType { get; private set; }
     public string? LandFillTypeOther { get; private set; }
     public string? UrbanPlanningType { get; private set; }
+    // สีผังเมืองตามแผนผังจริง (group UrbanPlanningColor; 99 = other, text in UrbanPlanningColorOther)
+    public string? UrbanPlanningColor { get; private set; }
+    public string? UrbanPlanningColorOther { get; private set; }
     public List<string>? LandUseType { get; private set; }
     public string? LandUseTypeOther { get; private set; }
 
@@ -100,6 +107,7 @@ public class CondoAppraisalDetail : Entity<Guid>
     public bool? IsInExpropriationLine { get; private set; }
     public string? ExpropriationLineRemark { get; private set; }
     public string? RoyalDecree { get; private set; }
+    public string? OtherLegalLimitations { get; private set; }
     public bool? IsForestBoundary { get; private set; }
     public string? ForestBoundaryRemark { get; private set; }
 
@@ -125,8 +133,24 @@ public class CondoAppraisalDetail : Entity<Guid>
     /// </summary>
     public decimal? BuildingInsurancePriceOverride { get; private set; }
 
+    // Surroundings (appraisal book 1.5)
+    public bool? HasFloodProblem { get; private set; }
+    public string? FloodProblemRemark { get; private set; }
+    public bool? HasPollutionProblem { get; private set; }
+    public List<string>? PollutionType { get; private set; }
+    public string? PollutionTypeOther { get; private set; }
+    public string? PollutionProblemRemark { get; private set; }
+    public bool? HasOtherEnvironmentProblem { get; private set; }
+    public string? OtherEnvironmentProblemRemark { get; private set; }
+    public string? RoadPassInFrontOfLand { get; private set; }
+    public List<string>? TransportationAccessType { get; private set; }
+    public string? TransportationAccessTypeOther { get; private set; }
+
     // Other
     public string? Remark { get; private set; }
+
+    // Rental: the unit is rented out to others (lease agreement & rental info live on the property)
+    public bool? IsRentedOut { get; private set; }
 
     private CondoAppraisalDetail()
     {
@@ -163,16 +187,18 @@ public class CondoAppraisalDetail : Entity<Guid>
         bool? isOwnerVerified = null,
         string? buildingConditionType = null,
         string? buildingConditionTypeOther = null,
-        string? hasObligation = null,
+        List<string>? obligationType = null,
         string? obligationDetails = null,
+        string? mortgageDetails = null,
         string? documentValidationResultType = null,
         // Location Details
         string? locationType = null,
+        string? locationRemark = null,
         string? street = null,
         string? soi = null,
         decimal? distanceFromMainRoad = null,
-        decimal? accessRoadWidth = null,
-        short? rightOfWay = null,
+        decimal? carriagewayWidth = null,
+        decimal? rightOfWayWidth = null,
         string? roadSurfaceType = null,
         string? roadSurfaceTypeOther = null,
         List<string>? publicUtilityType = null,
@@ -206,6 +232,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         bool? isInExpropriationLine = null,
         string? expropriationLineRemark = null,
         string? royalDecree = null,
+        string? otherLegalLimitations = null,
         bool? isForestBoundary = null,
         string? forestBoundaryRemark = null,
         // Facilities & Environment
@@ -235,7 +262,23 @@ public class CondoAppraisalDetail : Entity<Guid>
         decimal? governmentPrice = null,
         // Fire Insurance (appended — see Update() ordering note)
         string? fireInsuranceCode = null,
-        decimal? buildingInsurancePriceOverride = null)
+        decimal? buildingInsurancePriceOverride = null,
+        // Surroundings (appraisal book 1.5)
+        bool? hasFloodProblem = null,
+        string? floodProblemRemark = null,
+        bool? hasPollutionProblem = null,
+        List<string>? pollutionType = null,
+        string? pollutionTypeOther = null,
+        string? pollutionProblemRemark = null,
+        bool? hasOtherEnvironmentProblem = null,
+        string? otherEnvironmentProblemRemark = null,
+        string? roadPassInFrontOfLand = null,
+        List<string>? transportationAccessType = null,
+        string? transportationAccessTypeOther = null,
+        short? numberOfLanes = null,
+        string? urbanPlanningColor = null,
+        string? urbanPlanningColorOther = null,
+        bool? isRentedOut = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -259,17 +302,19 @@ public class CondoAppraisalDetail : Entity<Guid>
         IsOwnerVerified = isOwnerVerified;
         BuildingConditionType = buildingConditionType;
         BuildingConditionTypeOther = buildingConditionTypeOther;
-        HasObligation = hasObligation;
+        ObligationType = obligationType;
         ObligationDetails = obligationDetails;
+        MortgageDetails = mortgageDetails;
         DocumentValidationResultType = documentValidationResultType;
 
         // Location Details
         LocationType = locationType;
+        LocationRemark = locationRemark;
         Street = street;
         Soi = soi;
         DistanceFromMainRoad = distanceFromMainRoad;
-        AccessRoadWidth = accessRoadWidth;
-        RightOfWay = rightOfWay;
+        CarriagewayWidth = carriagewayWidth;
+        RightOfWayWidth = rightOfWayWidth;
         RoadSurfaceType = roadSurfaceType;
         RoadSurfaceTypeOther = roadSurfaceTypeOther;
         PublicUtilityType = publicUtilityType;
@@ -307,6 +352,7 @@ public class CondoAppraisalDetail : Entity<Guid>
         IsInExpropriationLine = isInExpropriationLine;
         ExpropriationLineRemark = expropriationLineRemark;
         RoyalDecree = royalDecree;
+        OtherLegalLimitations = otherLegalLimitations;
         IsForestBoundary = isForestBoundary;
         ForestBoundaryRemark = forestBoundaryRemark;
 
@@ -343,6 +389,23 @@ public class CondoAppraisalDetail : Entity<Guid>
         // Fire Insurance
         FireInsuranceCode = fireInsuranceCode;
         BuildingInsurancePriceOverride = buildingInsurancePriceOverride;
+
+        // Surroundings (appraisal book 1.5)
+        HasFloodProblem = hasFloodProblem;
+        FloodProblemRemark = floodProblemRemark;
+        HasPollutionProblem = hasPollutionProblem;
+        PollutionType = pollutionType;
+        PollutionTypeOther = pollutionTypeOther;
+        PollutionProblemRemark = pollutionProblemRemark;
+        HasOtherEnvironmentProblem = hasOtherEnvironmentProblem;
+        OtherEnvironmentProblemRemark = otherEnvironmentProblemRemark;
+        RoadPassInFrontOfLand = roadPassInFrontOfLand;
+        TransportationAccessType = transportationAccessType;
+        TransportationAccessTypeOther = transportationAccessTypeOther;
+        NumberOfLanes = numberOfLanes;
+        UrbanPlanningColor = urbanPlanningColor;
+        UrbanPlanningColorOther = urbanPlanningColorOther;
+        IsRentedOut = isRentedOut;
     }
 
     /// <summary>
@@ -406,15 +469,18 @@ public class CondoAppraisalDetail : Entity<Guid>
             IsOwnerVerified = source.IsOwnerVerified,
             BuildingConditionType = source.BuildingConditionType,
             BuildingConditionTypeOther = source.BuildingConditionTypeOther,
-            HasObligation = source.HasObligation,
+            ObligationType = source.ObligationType?.ToList(),
             ObligationDetails = source.ObligationDetails,
+            MortgageDetails = source.MortgageDetails,
             DocumentValidationResultType = source.DocumentValidationResultType,
             LocationType = source.LocationType,
+            LocationRemark = source.LocationRemark,
             Street = source.Street,
             Soi = source.Soi,
             DistanceFromMainRoad = source.DistanceFromMainRoad,
-            AccessRoadWidth = source.AccessRoadWidth,
-            RightOfWay = source.RightOfWay,
+            CarriagewayWidth = source.CarriagewayWidth,
+            RightOfWayWidth = source.RightOfWayWidth,
+            NumberOfLanes = source.NumberOfLanes,
             RoadSurfaceType = source.RoadSurfaceType,
             RoadSurfaceTypeOther = source.RoadSurfaceTypeOther,
             PublicUtilityType = source.PublicUtilityType?.ToList(),
@@ -424,6 +490,8 @@ public class CondoAppraisalDetail : Entity<Guid>
             LandFillType = source.LandFillType,
             LandFillTypeOther = source.LandFillTypeOther,
             UrbanPlanningType = source.UrbanPlanningType,
+            UrbanPlanningColor = source.UrbanPlanningColor,
+            UrbanPlanningColorOther = source.UrbanPlanningColorOther,
             LandUseType = source.LandUseType?.ToList(),
             LandUseTypeOther = source.LandUseTypeOther,
             DecorationType = source.DecorationType,
@@ -451,6 +519,7 @@ public class CondoAppraisalDetail : Entity<Guid>
             IsInExpropriationLine = source.IsInExpropriationLine,
             ExpropriationLineRemark = source.ExpropriationLineRemark,
             RoyalDecree = source.RoyalDecree,
+            OtherLegalLimitations = source.OtherLegalLimitations,
             IsForestBoundary = source.IsForestBoundary,
             ForestBoundaryRemark = source.ForestBoundaryRemark,
             FacilityType = source.FacilityType?.ToList(),
@@ -463,7 +532,19 @@ public class CondoAppraisalDetail : Entity<Guid>
             FireInsuranceCode = source.FireInsuranceCode,
             BuildingInsurancePrice = source.BuildingInsurancePrice,
             BuildingInsurancePriceOverride = source.BuildingInsurancePriceOverride,
-            Remark = source.Remark
+            HasFloodProblem = source.HasFloodProblem,
+            FloodProblemRemark = source.FloodProblemRemark,
+            HasPollutionProblem = source.HasPollutionProblem,
+            PollutionType = source.PollutionType?.ToList(),
+            PollutionTypeOther = source.PollutionTypeOther,
+            PollutionProblemRemark = source.PollutionProblemRemark,
+            HasOtherEnvironmentProblem = source.HasOtherEnvironmentProblem,
+            OtherEnvironmentProblemRemark = source.OtherEnvironmentProblemRemark,
+            RoadPassInFrontOfLand = source.RoadPassInFrontOfLand,
+            TransportationAccessType = source.TransportationAccessType?.ToList(),
+            TransportationAccessTypeOther = source.TransportationAccessTypeOther,
+            Remark = source.Remark,
+            IsRentedOut = source.IsRentedOut
         };
 
         foreach (var area in source.AreaDetails)

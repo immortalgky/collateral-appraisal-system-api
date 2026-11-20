@@ -182,4 +182,14 @@ public class ProjectTypeTests
         var project = Project.Create(Guid.NewGuid(), ProjectType.Land, licenseExpirationDate: expiry);
         Assert.Equal(expiry, project.LicenseExpirationDate);
     }
+
+    [Fact]
+    public void Land_Create_WithLicenseNumber_Succeeds_And_Condo_Rejects_It()
+    {
+        var project = Project.Create(Guid.NewGuid(), ProjectType.Land, licenseNumber: "ก-123/2566");
+        Assert.Equal("ก-123/2566", project.LicenseNumber);
+
+        Assert.Throws<ArgumentException>(() =>
+            Project.Create(Guid.NewGuid(), ProjectType.Condo, licenseNumber: "ก-123/2566"));
+    }
 }

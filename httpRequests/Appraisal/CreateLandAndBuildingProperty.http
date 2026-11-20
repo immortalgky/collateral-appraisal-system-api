@@ -103,8 +103,8 @@ Content-Type: application/json
   "landUseZoningOther": null,
 
   "accessRoadType": "PublicRoad",
-  "accessRoadWidth": 8.0,
-  "rightOfWay": 4,
+  "carriagewayWidth": 8.0,
+  "numberOfLanes": 4,
   "roadFrontage": 25.0,
   "numberOfSidesFacingRoad": 2,
   "roadPassInFrontOfLand": "Soi 55",
@@ -313,8 +313,8 @@ Content-Type: application/json
   "landShape": "Rectangular",
   "urbanPlanningType": "PurpleZone",
 
-  "accessRoadWidth": 12.0,
-  "rightOfWay": 6,
+  "carriagewayWidth": 12.0,
+  "numberOfLanes": 6,
   "roadSurfaceType": "Concrete",
 
   "electricityAvailable": true,
@@ -418,8 +418,8 @@ Content-Type: application/json
   "landShape": "Rectangular",
   "urbanPlanningType": "YellowZone",
 
-  "accessRoadWidth": 6.0,
-  "rightOfWay": 4,
+  "carriagewayWidth": 6.0,
+  "numberOfLanes": 4,
   "roadSurfaceType": "Asphalt",
 
   "electricityAvailable": true,

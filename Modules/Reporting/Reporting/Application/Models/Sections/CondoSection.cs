@@ -70,22 +70,112 @@ public sealed class CondoSection
     /// </summary>
     public string? DistanceText { get; init; }
 
+    // ── Stored on CondoAppraisalDetails and printed by the numbered condo book ────────────
+
+    /// <summary>สำนักงานที่ดิน — CondoAppraisalDetails.LandOffice (parameter group 'LandOffice').</summary>
+    public string? LandOffice { get; init; }
+
+    /// <summary>พื้นที่ใช้สอย (ตร.ม.) — sum of CondoAppraisalDetails.UsableArea over the condo units; the area GovernmentPrice is stored against.</summary>
+    public decimal? UsableArea { get; init; }
+
+    /// <summary>ตรวจสอบกรรมสิทธิ์แล้ว — CondoAppraisalDetails.IsOwnerVerified.</summary>
+    public bool? IsOwnerVerified { get; init; }
+
+    /// <summary>สภาพห้อง / สภาพอาคาร — CondoAppraisalDetails.BuildingConditionType (+ Other), group 'BuildingCondition'.</summary>
+    public string? BuildingCondition { get; init; }
+
+    /// <summary>จำนวนช่องจราจร (เลน) — CondoAppraisalDetails.NumberOfLanes.</summary>
+    public short? NumberOfLanes { get; init; }
+
+    /// <summary>เขตทางกว้าง (metres) — CondoAppraisalDetails.RightOfWayWidth.</summary>
+    public decimal? RightOfWayWidth { get; init; }
+
+    /// <summary>ปีที่สร้าง — CondoAppraisalDetails.ConstructionYear.</summary>
+    public int? ConstructionYear { get; init; }
+
+    /// <summary>พิกัด GPS — CondoAppraisalDetails.Latitude / Longitude.</summary>
+    public decimal? Latitude { get; init; }
+    public decimal? Longitude { get; init; }
+
+    /// <summary>หมายเหตุแนวเวนคืน (ExpropriationLineRemark only), พรฎ. และหมายเหตุแนวเขตป่า.</summary>
+    public string? ExpropriationRemark { get; init; }
+    public string? RoyalDecree { get; init; }
+    public string? ForestBoundaryRemark { get; init; }
+
+    /// <summary>ข้อจำกัดอื่นๆ ที่พบ — CondoAppraisalDetails.OtherLegalLimitations (free text, up to 4000 chars).</summary>
+    public string? OtherLegalLimitations { get; init; }
+
+    /// <summary>ปัญหาน้ำท่วมขัง (book 1.5) — CondoAppraisalDetails.HasFloodProblem (+ FloodProblemRemark).</summary>
+    public bool? HasFloodProblem { get; init; }
+    public string? FloodProblemRemark { get; init; }
+
+    /// <summary>ปัญหามลพิษ (book 1.5) — HasPollutionProblem; PollutionType is the labels joined " / " (code 99 prints PollutionTypeOther).</summary>
+    public bool? HasPollutionProblem { get; init; }
+    public string? PollutionType { get; init; }
+    public string? PollutionProblemRemark { get; init; }
+
+    /// <summary>ปัญหาอื่นๆ (book 1.5) — HasOtherEnvironmentProblem (+ OtherEnvironmentProblemRemark, printed as the row's value).</summary>
+    public bool? HasOtherEnvironmentProblem { get; init; }
+    public string? OtherEnvironmentProblemRemark { get; init; }
+
+    /// <summary>ถนนผ่านหน้า (book 1.3) — CondoAppraisalDetails.RoadPassInFrontOfLand; the template falls back to <see cref="LocatedOnRoad"/> when blank.</summary>
+    public string? RoadPassInFrontOfLand { get; init; }
+
+    /// <summary>การคมนาคม (book 1.3) — TransportationAccessType decoded with the Transportation parameter names, plus the "other" text.</summary>
+    public string? TransportationAccessType { get; init; }
+
     // ── Ownership &amp; obligation ──────────────────────────────────────────────────
 
     /// <summary>ผู้ถือกรรมสิทธิ์ — source: CondoAppraisalDetails.OwnerName.</summary>
     public string? OwnerName { get; init; }
 
-    /// <summary>ภาระผูกพัน — source: CondoAppraisalDetails.ObligationDetails.</summary>
-    public string? Obligation { get; init; }
+    /// <summary>
+    /// The owners of every unit, worded by the letter's rule (<see cref="Providers.LetterOwnerRows.Summarise"/>), with no "(รายละเอียดตามข้อ …)" pointer:
+    /// all units alike → that one name; otherwise one "ห้อง {room}: {owner}" line per unit ("\n"-separated, the row is pre-line). A unit with no owner is left out;
+    /// null when none has one (the template prints its own dash). <paramref name="grouped"/> counts per owner above 10 units (the condo summary); the book
+    /// is the detail place and never groups.
+    /// </summary>
+    public string? Owners(bool grouped = false) => PerUnit(u => Providers.AppraisalSummaryCommonLoader.OwnerDisplay(u.OwnerName, u.IsOwnerVerified), null, grouped);
+
+    /// <summary>The mortgage of every unit, per room like <see cref="Owners"/>, with the letter's "ไม่มี" rule: all alike → that one text; units with none are left out; all none → "ไม่มี".</summary>
+    public string? Mortgage(bool grouped = false) => PerUnit(u => u.ObligationMortgage, Providers.ObligationText.None, grouped);
+
+    /// <summary>The other obligations of every unit, the same rule as <see cref="Mortgage"/>.</summary>
+    public string? Others(bool grouped = false) => PerUnit(u => u.ObligationOthers, Providers.ObligationText.None, grouped);
+
+    /// <summary>The book's per-room texts (one line per room, never grouped): the ผู้ถือกรรมสิทธิ์ and ภาระผูกพัน rows of the condo 2.1 header and of the mixed book.</summary>
+    public string? OwnersText => Owners();
+    public string? ObligationMortgageText => Mortgage();
+    public string? ObligationOthersText => Others();
+
+    private string? PerUnit(Func<CondoUnitAreaRow, string?> text, string? noneText, bool grouped) =>
+        Providers.LetterOwnerRows.Summarise(
+            Units.Select((u, i) => (Formatting.ThaiAddressFormatter.RoomLabel(u.RoomNumber, i), text(u), 1)).ToList(),
+            "ห้อง", null, noneText, grouped);
+
+    /// <summary>ภาระผูกพันการจำนอง — source: ObligationType (02) + MortgageDetails; "ไม่มี" when not mortgaged.</summary>
+    public string? ObligationMortgage { get; init; }
+
+    /// <summary>ภาระผูกพันอื่นๆ — source: ObligationType (03/04/05/99) + ObligationDetails; "ไม่มี" when none.</summary>
+    public string? ObligationOthers { get; init; }
+
+    /// <summary>การให้เช่า — source: CondoAppraisalDetails.IsRentedOut.</summary>
+    public bool? IsRentedOut { get; init; }
 
     // ── Position / collateral correctness ────────────────────────────────────────
 
     /// <summary>
-    /// ตำแหน่งหลักประกัน — ถูกต้อง / ไม่ถูกต้อง checkbox.
+    /// ตำแหน่งห้องชุด — ถูกต้อง / ไม่ถูกต้อง checkbox.
     /// Source: no dedicated boolean column on CondoAppraisalDetails; deferred (null).
     /// </summary>
     // no source — CondoAppraisalDetailConfiguration has no PositionCorrect column
     public bool? PositionCorrect { get; init; }
+
+    /// <summary>ผลตรวจสอบเอกสาร — CondoAppraisalDetails.DocumentValidationResultType: "01" ถูกต้องตรงกัน, "02" ไม่สอดคล้องกัน; null otherwise.</summary>
+    public string? DocumentValidationResult { get; init; }
+
+    /// <summary>หมายเหตุตำแหน่งห้องชุด — CondoAppraisalDetails.LocationRemark; printed only when the position is ไม่ถูกต้อง.</summary>
+    public string? PositionRemark { get; init; }
 
     // ── Interior finishes (สภาพและการตกแต่งภายในห้องชุด) ─────────────────────────
 
@@ -95,52 +185,28 @@ public sealed class CondoSection
     /// </summary>
     public string? FloorMaterial { get; init; }
 
-    /// <summary>
-    /// ผนัง — no dedicated WallMaterialType column on CondoAppraisalDetails; deferred (null).
-    /// The schema stores GroundFloorMaterialType / UpperFloorMaterialType / BathroomFloorMaterialType
-    /// but no InteriorWallType on this entity.
-    /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no WallMaterialType column
-    public string? Wall { get; init; }
+    /// <summary>วัสดุพื้นห้องน้ำ — source: CondoAppraisalDetails.BathroomFloorMaterialType.</summary>
+    public string? BathroomFloorMaterial { get; init; }
 
-    /// <summary>
-    /// ฝ้าเพดาน — no dedicated CeilingMaterialType column on CondoAppraisalDetails; deferred (null).
-    /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no CeilingMaterialType column
-    public string? Ceiling { get; init; }
+    /// <summary>การตกแต่ง — source: CondoAppraisalDetails.DecorationType.</summary>
+    public string? Decoration { get; init; }
 
-    /// <summary>
-    /// ประตู — no dedicated DoorMaterialType column on CondoAppraisalDetails; deferred (null).
-    /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no DoorMaterialType column
-    public string? Door { get; init; }
+    /// <summary>ผังห้อง — source: CondoAppraisalDetails.RoomLayoutType.</summary>
+    public string? RoomLayout { get; init; }
 
-    /// <summary>
-    /// หน้าต่าง — no dedicated WindowMaterialType column on CondoAppraisalDetails; deferred (null).
-    /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no WindowMaterialType column
-    public string? Window { get; init; }
+    /// <summary>ทิวทัศน์ — source: CondoAppraisalDetails.LocationViewType (JSON array).</summary>
+    public string? LocationView { get; init; }
 
-    /// <summary>
-    /// สุขภัณฑ์ — closest available column is BathroomFloorMaterialType (bathroom floor).
-    /// Source: CondoAppraisalDetails.BathroomFloorMaterialType (parameter-translated display string).
-    /// </summary>
-    public string? Sanitary { get; init; }
+    // Wall, ceiling, door, window and sanitary ware have no column on CondoAppraisalDetails;
+    // the template prints a red "-" for them (they are not modelled here).
 
     // ── Road / access to building (ทางเข้าออกอาคารชุด) ──────────────────────────
 
     /// <summary>
-    /// ผิวจราจรกว้าง (metres) — source: CondoAppraisalDetails.AccessRoadWidth.
+    /// ผิวจราจรกว้าง (metres) — source: CondoAppraisalDetails.CarriagewayWidth.
     /// FSD field label: ผิวจราจรกว้าง.
     /// </summary>
-    public decimal? RoadSurfaceWidth { get; init; }
-
-    /// <summary>
-    /// เขตทางกว้าง (metres) — no RoadFrontage/RoadZoneWidth column on CondoAppraisalDetails; deferred (null).
-    /// CondoAppraisalDetailConfiguration has AccessRoadWidth only (not a separate RoadZone/Frontage column).
-    /// </summary>
-    // no source — CondoAppraisalDetailConfiguration has no RoadZoneWidth/RoadFrontage column
-    public decimal? RoadZoneWidth { get; init; }
+    public decimal? CarriagewayWidth { get; init; }
 
     /// <summary>
     /// ลักษณะผิวจราจร — source: CondoAppraisalDetails.RoadSurfaceType
@@ -191,17 +257,28 @@ public sealed class CondoSection
     public bool? IsInExpropriationLine { get; init; }
 
     /// <summary>
-    /// พื้นที่สี (urban-planning colour zone) —
-    /// source: CondoAppraisalDetails.UrbanPlanningType (parameter-translated display string).
-    /// </summary>
-    public string? AreaColour { get; init; }
-
-    /// <summary>
-    /// ที่ดินประเภท (land condition) —
-    /// source: CondoAppraisalDetails.LandFillType (parameter-translated display string;
-    /// Other suffix appended when present).
+    /// ที่ดินประเภท — source: CondoAppraisalDetails.UrbanPlanningType (parameter-translated).
     /// </summary>
     public string? LandType { get; init; }
+
+    /// <summary>เป็นพื้นที่สี / สีผังเมือง — CondoAppraisalDetails.UrbanPlanningColor (group 'UrbanPlanningColor'; 99 prints the Other text).</summary>
+    public string? UrbanPlanningColor { get; init; }
+
+    /// <summary>อยู่ในแนวเขตป่า — source: CondoAppraisalDetails.IsForestBoundary.</summary>
+    public bool? IsForestBoundary { get; init; }
+
+    /// <summary>สิ่งอำนวยความสะดวก — source: CondoAppraisalDetails.FacilityType (JSON array).</summary>
+    public string? Facilities { get; init; }
+
+    /// <summary>
+    /// PropertyGroups.GroupNumber → the condo figures of the units that group holds. This section sums up EVERY unit of the appraisal
+    /// (<see cref="UsableArea"/>, <see cref="CondoName"/> ... are the whole appraisal's), so a pricing grid's subject column reads its own
+    /// group's figures from here.
+    /// </summary>
+    public IReadOnlyDictionary<int, CondoGroupFigures> GroupFigures { get; init; } = new Dictionary<int, CondoGroupFigures>();
+
+    /// <summary>สภาพแวดล้อม — source: CondoAppraisalDetails.EnvironmentType (JSON array).</summary>
+    public string? Environment { get; init; }
 
     // ── Legal restrictions, continued ────────────────────────────────────────────
 
@@ -269,9 +346,19 @@ public sealed class CondoValuationDetail
     public decimal? RegistrationPricePerSqm { get; init; }
 
     /// <summary>
-    /// จำนวนเงิน (บาท) — government registration total. Source: CondoAppraisalDetails.GovernmentPrice.
+    /// จำนวนเงิน (บาท) — government registration total. Source: CondoAppraisalDetails.GovernmentPrice
+    /// (summed over the listed units).
     /// </summary>
     public decimal? RegistrationAmount { get; init; }
+
+    /// <summary>Registration amount per area row = rate x that area (computed; null without a rate or area).</summary>
+    /// <summary>หมายเหตุ of the valuation box — PricingAnalysis.Remark of the unit's group(s).</summary>
+    public string? Remark { get; init; }
+
+    public decimal? InteriorAmount { get; init; }
+    public decimal? BalconyAmount { get; init; }
+    public decimal? AirConAmount { get; init; }
+    public decimal? OtherAmount { get; init; }
 
     // ── PART B: market comparison value ────────────────────────────────────────────
 
@@ -314,6 +401,24 @@ public sealed class CondoUnitAreaRow
     /// <summary>ชั้นที่ — source: CondoAppraisalDetails.FloorNumber.</summary>
     public string? FloorNumber { get; init; }
 
+    /// <summary>ผู้ถือกรรมสิทธิ์ของห้องนี้ — source: CondoAppraisalDetails.OwnerName of THIS unit.</summary>
+    public string? OwnerName { get; init; }
+
+    /// <summary>CondoAppraisalDetails.IsOwnerVerified of this unit: only an explicit false means the owner could not be verified.</summary>
+    public bool? IsOwnerVerified { get; init; }
+
+    /// <summary>
+    /// This unit's owner as the book prints it: "ไม่สามารถตรวจสอบได้" when marked not verified, otherwise the trimmed name, and "-" when there is none
+    /// (the same rule as <see cref="BuildingSection.OwnerText"/>).
+    /// </summary>
+    public string OwnerText => Formatting.ThaiAddressFormatter.Stated(Providers.AppraisalSummaryCommonLoader.OwnerDisplay(OwnerName, IsOwnerVerified)) ?? "-";
+
+    /// <summary>ภาระผูกพันการจำนองของห้องนี้ — "ไม่มี" when not mortgaged.</summary>
+    public string? ObligationMortgage { get; init; }
+
+    /// <summary>ภาระผูกพันอื่นๆ ของห้องนี้ — "ไม่มี" when none.</summary>
+    public string? ObligationOthers { get; init; }
+
     /// <summary>
     /// พื้นที่ภายในห้องชุด (ตร.ม.) — pivoted from CondoAppraisalAreaDetails rows
     /// where AreaDescription contains "ภายใน" or "Interior" (case-insensitive).
@@ -343,4 +448,13 @@ public sealed class CondoUnitAreaRow
     /// Falls back to CondoAppraisalDetails.UsableArea when no area-detail rows exist.
     /// </summary>
     public decimal? TotalArea { get; init; }
+}
+
+/// <summary>The condo subject figures of ONE property group: the sum of its units' usable area, and the name / condition / facilities of its first unit (by SequenceInGroup).</summary>
+public sealed class CondoGroupFigures
+{
+    public decimal? UsableArea { get; init; }
+    public string? CondoName { get; init; }
+    public string? BuildingCondition { get; init; }
+    public string? Facilities { get; init; }
 }

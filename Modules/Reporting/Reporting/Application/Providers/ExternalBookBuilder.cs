@@ -1,6 +1,7 @@
 using System.Data;
 using Reporting.Application.Formatting;
 using Reporting.Application.Models;
+using Reporting.Application.Providers.Sections;
 
 namespace Reporting.Application.Providers;
 
@@ -13,7 +14,7 @@ namespace Reporting.Application.Providers;
 /// loaded ONCE by <see cref="AppraisalBookDataProvider"/> regardless of internal/external, so this
 /// builder deliberately does NOT call the section loaders.
 ///
-/// Data is fetched in a single QueryMultiple batch (14 result sets, all off @AppraisalId) plus a
+/// Data is fetched in a single QueryMultiple batch (13 result sets, all off @AppraisalId) plus a
 /// conditional company lookup — identical to the former ExternalReportDataProvider.
 /// </summary>
 internal static class ExternalBookBuilder
@@ -24,31 +25,161 @@ internal static class ExternalBookBuilder
         "เพื่อใช้ในการพิจารณาขอสินเชื่อของ ธนาคารแลนด์ แอนด์ เฮ้าส์ จำกัด (มหาชน)";
     private const string ExternalAppraisalCriteria = "เพื่อทราบมูลค่าตลาด";
 
-    // ── Method type → Thai label map ─────────────────────────────────────────────
+    // ── Method type → printed name ───────────────────────────────────────────────
+    // Market-comparison methods keep their long Thai name on the "วิธีการประเมินมูลค่า" row; the value table
+    // uses the short name next to the approach it belongs to.
     private static readonly IReadOnlyDictionary<string, string> MethodTypeLabels =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["WQS"]               = "วิธีเปรียบเทียบราคาตลาด (WQS)",
-            ["SaleGrid"]          = "วิธีเปรียบเทียบตลาด",
-            ["DirectComparison"]  = "วิธีเปรียบเทียบตลาด",
-            ["BuildingCost"]      = "วิธีต้นทุน",
-            ["MachineryCost"]     = "วิธีต้นทุน",
-            ["Income"]            = "วิธีรายได้",
-            ["Leasehold"]         = "วิธีสิทธิการเช่า",
-            ["ProfitRent"]        = "วิธีกำไรจากค่าเช่า",
-            ["Hypothesis"]        = "วิธีสมมติฐาน",
+            ["SaleGrid"]          = "วิธีเปรียบเทียบตลาด (Sale Grid)",
+            ["DirectComparison"]  = "วิธีเปรียบเทียบตลาด (Direct Comparison)",
         };
+
+    private static readonly IReadOnlyDictionary<string, string> MethodShortNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["WQS"]               = "WQS",
+            ["SaleGrid"]          = "Sale Grid",
+            ["DirectComparison"]  = "Direct Comparison",
+            ["BuildingCost"]      = "ต้นทุนสิ่งปลูกสร้าง",
+            ["MachineryCost"]     = "ต้นทุนเครื่องจักร",
+            ["Income"]            = "Income",
+            ["Leasehold"]         = "Leasehold",
+            ["ProfitRent"]        = "Profit Rent",
+            ["Hypothesis"]        = "Hypothesis",
+        };
+
+    internal sealed record PricingSummary(
+        IReadOnlyList<ApproachValueRow> Rows, bool MultiGroup, string? PriceMethod, string? Reason);
+
+    /// <summary>
+    /// The approach value when none is stored. A stored non-zero ApproachValue always wins (the caller checks it first). Without one:
+    /// Cost = null, exactly like the domain (ComputeSelectedValue returns null when nothing is selected); guessing a combination of the
+    /// valued methods would add up alternatives (a LandAndBuilding next to a Building) or mix roles. Any other approach = its first
+    /// method that has a value, in the picker's deterministic (creation) order. Null when no method carries a value.
+    /// </summary>
+    internal static decimal? DeriveApproachValue(string? approachType, IReadOnlyList<PickedMethod> picked) =>
+        DerivingMethod(approachType, picked)?.MethodValue;
+
+    /// <summary>The one method a derived (not stored) value comes from: the first valued method of a non-Cost approach; null for Cost or when none has a value.</summary>
+    internal static PickedMethod? DerivingMethod(string? approachType, IReadOnlyList<PickedMethod> picked) =>
+        string.Equals(approachType, "Cost", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : picked.FirstOrDefault(m => PricingMethodPicker.HasValue(m.MethodValue));
+
+    /// <summary>A stored non-zero value wins; a stored 0 means none (never printed back); otherwise <see cref="DeriveApproachValue"/>.</summary>
+    internal static decimal? ApproachValueOf(decimal? stored, string? approachType, IReadOnlyList<PickedMethod> picked) =>
+        PricingMethodPicker.HasValue(stored) ? stored : DeriveApproachValue(approachType, picked);
+
+    /// <summary>
+    /// One row per analysed approach of every property group — the approach the valuation used first, then
+    /// the reference ones — plus the "วิธีการประเมินมูลค่า" line (selected approaches only) and the appraiser's
+    /// reason for choosing (PricingAnalysis.Remark). Which methods stand behind an approach comes from
+    /// <see cref="PricingMethodPicker"/>, the same rule the pricing pages use.
+    /// </summary>
+    internal static async Task<PricingSummary> LoadPricingAsync(
+        IDbConnection connection, Guid appraisalId, CancellationToken ct)
+    {
+        const string sql = """
+            SELECT
+                pg.GroupNumber,
+                pg.GroupName,
+                paa.Id            AS ApproachId,
+                paa.ApproachType,
+                paa.IsSelected,
+                paa.ApproachValue,
+                pa.Remark
+            FROM appraisal.PropertyGroups pg
+            JOIN appraisal.PricingAnalysis pa
+                ON pa.AnchorId = pg.Id
+               AND pa.SubjectType = 0
+            JOIN appraisal.PricingAnalysisApproaches paa
+                ON paa.PricingAnalysisId = pa.Id
+            WHERE pg.AppraisalId = @AppraisalId
+            -- Within a group the used approach first, then the order the approaches were created (a v7 Guid's SQL Server sort order is not creation order, so Id is only the last tie-break).
+            -- The same order is used by every loader that walks the approaches (PricingMethodPicker, PricingSubAnalysisLoader, ComparisonSectionLoader).
+            ORDER BY pg.GroupNumber, paa.IsSelected DESC, CASE WHEN paa.CreatedAt IS NULL THEN 1 ELSE 0 END, paa.CreatedAt, paa.ApproachType, paa.Id
+            """;
+
+        var approaches = (await connection.QueryAsync<ApproachRow>(
+            new CommandDefinition(sql, new { AppraisalId = appraisalId }, cancellationToken: ct))).ToList();
+        if (approaches.Count == 0)
+            return new PricingSummary([], false, null, null);
+
+        var methods = await PricingMethodPicker.LoadAsync(connection, appraisalId, MethodShortNames.Keys.ToArray(), ct);
+        var multiGroup = approaches.Select(a => a.GroupNumber).Distinct().Count() > 1;
+
+        var rows = new List<ApproachValueRow>();
+        var selectedLabels = new List<string>();
+        foreach (var a in approaches)
+        {
+            var mine = methods.Where(m => m.ApproachId == a.ApproachId).ToList();
+            // A stored non-zero approach value wins; a stored 0 means none, like the picker's rule (null and 0 both mean no value), and prints
+            // as nothing. Without one, a Cost approach has no value (the domain gives null with nothing selected, and a guessed combination of
+            // alternatives would double count) and any other approach takes its first valued method in the picker's creation order.
+            var value = ApproachValueOf(a.ApproachValue, a.ApproachType, mine);
+            // A value derived from one method (nothing stored) is that method's alone: the row and the "วิธีที่ใช้" line name only it, not every
+            // alternative the picker returned ("WQS + Sale Grid").
+            IReadOnlyList<PickedMethod> shown = !PricingMethodPicker.HasValue(a.ApproachValue) && DerivingMethod(a.ApproachType, mine) is { } only
+                ? new[] { only } : mine;
+            if (!a.IsSelected && !PricingMethodPicker.HasValue(value))
+                continue; // never analysed (a reference row at 0 is noise too)
+
+            var approachLabel = PricingMethodPicker.ApproachLabel(a.ApproachType);
+
+            rows.Add(new ApproachValueRow
+            {
+                GroupNumber = a.GroupNumber,
+                GroupName = a.GroupName,
+                ApproachType = a.ApproachType,
+                ApproachLabel = approachLabel,
+                Methods = shown.Select(m => new ApproachMethodRef(m.MethodType, m.Role)).ToList(),
+                Value = value,
+                IsReference = !a.IsSelected
+            });
+
+            if (a.IsSelected)
+            {
+                var marketLabels = shown.Select(m => MethodTypeLabels.GetValueOrDefault(m.MethodType)).OfType<string>().Distinct().ToList();
+                var line = string.Equals(a.ApproachType, "Market", StringComparison.OrdinalIgnoreCase) && marketLabels.Count > 0
+                    ? string.Join(" + ", marketLabels)
+                    : approachLabel;
+                if (!string.IsNullOrWhiteSpace(line) && !selectedLabels.Contains(line))
+                    selectedLabels.Add(line);
+            }
+        }
+
+        // pa.Remark repeats on every approach row of a group — take it once per group.
+        var reasons = approaches
+            .GroupBy(a => a.GroupNumber)
+            .Select(g => (Group: g.Key, Remark: g.Select(a => a.Remark).FirstOrDefault(r => !string.IsNullOrWhiteSpace(r))))
+            .Where(g => g.Remark is not null)
+            .Select(g => multiGroup ? $"กลุ่มที่ {g.Group}: {g.Remark}" : g.Remark!)
+            .ToList();
+
+        return new PricingSummary(
+            rows,
+            multiGroup,
+            selectedLabels.Count > 0 ? string.Join(", ", selectedLabels) : null,
+            reasons.Count > 0 ? string.Join("\n", reasons) : null);
+    }
 
     /// <summary>
     /// Builds the external cover/letter portion of <see cref="AppraisalSummaryModel"/> from an open
     /// connection. <c>IsExternal</c> is set to true; section props are left null.
+    /// <paramref name="summary"/> is the bank's appraisal-summary form for this appraisal: the cover's
+    /// ที่ตั้งทรัพย์สิน and the letter's พรบ.ผังเมือง are taken from it, so they are the same values the
+    /// summary prints and cannot be re-composed differently here.
     /// </summary>
     internal static async Task<AppraisalSummaryModel> BuildAsync(
         IDbConnection connection,
         Guid appraisalId,
+        AppraisalSummaryModel summary,
+        decimal forceSaleRateDefault,
         CancellationToken cancellationToken)
     {
-        // ── Batch 1: 14 result sets, single round-trip (all keyed off @AppraisalId) ──
+        // ── Batch 1: 13 result sets, single round-trip (all keyed off @AppraisalId) ──
         const string batchSql = """
             -- RS01: Q1 — Appraisal header
             SELECT
@@ -70,8 +201,7 @@ internal static class ExternalBookBuilder
 
             -- RS03: Q3 — Latest non-cancelled External assignment
             SELECT TOP 1
-                aa.AssigneeCompanyId,
-                aa.ExternalAppraiserName
+                aa.AssigneeCompanyId
             FROM appraisal.AppraisalAssignments aa
             WHERE aa.AppraisalId = @AppraisalId
               AND aa.AssignmentType = 'External'
@@ -115,14 +245,9 @@ internal static class ExternalBookBuilder
             -- RS07: Q7 — Land rows (all land properties, ordered by sequence)
             SELECT
                 lad.Id            AS LandDetailId,
-                lad.OwnerName,
                 lad.ObligationDetails,
-                lad.Village,
-                lad.Soi,
-                lad.Street        AS Road,
-                lad.SubDistrict,
-                lad.District,
-                lad.Province,
+                lad.ObligationType,
+                lad.MortgageDetails,
                 lad.Latitude,
                 lad.Longitude
             FROM appraisal.LandAppraisalDetails lad
@@ -148,16 +273,12 @@ internal static class ExternalBookBuilder
 
             -- RS09: Q8 — Condo rows
             SELECT
+                cad.RoomNumber      AS CondoRoomNumber,
                 cad.OwnerName       AS CondoOwner,
+                cad.IsOwnerVerified AS CondoOwnerVerified,
                 cad.ObligationDetails AS CondoObligationDetails,
-                cad.RoomNumber,
-                cad.FloorNumber,
-                cad.CondoName,
-                cad.Soi             AS CondoSoi,
-                cad.Street          AS CondoRoad,
-                cad.SubDistrict     AS CondoSubDistrict,
-                cad.District        AS CondoDistrict,
-                cad.Province        AS CondoProvince,
+                cad.ObligationType    AS CondoObligationType,
+                cad.MortgageDetails   AS CondoMortgageDetails,
                 cad.Latitude        AS CondoLatitude,
                 cad.Longitude       AS CondoLongitude,
                 cad.UsableArea
@@ -166,23 +287,7 @@ internal static class ExternalBookBuilder
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY ap.SequenceNumber;
 
-            -- RS10: Q9 — Building detail (TOP 1, first by sequence)
-            SELECT TOP 1
-                COALESCE(pt.Description, bad.BuildingType)  AS BuildingTypeDisplay,
-                bad.NumberOfFloors,
-                bad.ModelName,
-                bad.OwnerName                               AS BuildingOwner
-            FROM appraisal.BuildingAppraisalDetails bad
-            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
-            LEFT JOIN parameter.Parameters pt
-                ON pt.[Group] = 'BuildingType'
-               AND pt.[Language] = 'TH'
-               AND pt.[Code] = bad.BuildingType
-               AND pt.IsActive = 1
-            WHERE ap.AppraisalId = @AppraisalId
-            ORDER BY ap.SequenceNumber;
-
-            -- RS11: Q10 — Machinery registration numbers
+            -- RS10: Q10 — Machinery registration numbers
             SELECT mad.RegistrationNumber
             FROM appraisal.MachineryAppraisalDetails mad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = mad.AppraisalPropertyId
@@ -191,27 +296,29 @@ internal static class ExternalBookBuilder
               AND mad.RegistrationNumber <> ''
             ORDER BY ap.SequenceNumber;
 
-            -- RS12: Q11 — Valuation totals
+            -- RS11: Q11 — Valuation totals + block project force-sale % (the rate chain's middle step; same join as
+            -- AppraisalSummaryCommonLoader RS05, so the project % still comes back before a ValuationAnalyses row exists).
             SELECT
                 va.AppraisedValue,
                 va.ForcedSaleValue,
-                va.InsuranceValue
-            FROM appraisal.ValuationAnalyses va
-            WHERE va.AppraisalId = @AppraisalId;
+                va.ForceSaleRate,
+                va.InsuranceValue,
+                ppa.ForceSalePercentage AS ProjectForceSalePercentage
+            FROM appraisal.Appraisals ap
+            LEFT JOIN appraisal.ValuationAnalyses va ON va.AppraisalId = ap.Id
+            LEFT JOIN appraisal.Projects p ON p.AppraisalId = ap.Id
+            LEFT JOIN appraisal.ProjectPricingAssumptions ppa ON ppa.ProjectId = p.Id
+            WHERE ap.Id = @AppraisalId AND ap.IsDeleted = 0;
 
-            -- RS13: Q12 — Distinct pricing method types
-            SELECT DISTINCT pam.MethodType
-            FROM appraisal.PricingAnalysisMethods pam
-            JOIN appraisal.PricingAnalysisApproaches paa ON paa.Id = pam.ApproachId
-            JOIN appraisal.PricingAnalysis pa ON pa.Id = paa.PricingAnalysisId
-            JOIN appraisal.PropertyGroups pg ON pg.Id = pa.AnchorId
-            WHERE pg.AppraisalId = @AppraisalId
-              AND pa.SubjectType = 0;
-
-            -- RS14: Q13 — Machinery surveyed count (appraisal-level, 1:1)
+            -- RS12: Q13 — Machinery surveyed count (appraisal-level, 1:1)
             SELECT mas.SurveyedNumber
             FROM appraisal.MachineryAppraisalSummaries mas
             WHERE mas.AppraisalId = @AppraisalId;
+
+            -- RS13: Obligation code→Thai map (names of the other-obligation codes 03/04/05/99)
+            SELECT [Code] AS Code, [Description] AS Description
+            FROM parameter.Parameters
+            WHERE [Group] = 'Obligation' AND [Language] = 'TH' AND IsActive = 1;
             """;
 
         var batchParams = new DynamicParameters();
@@ -226,11 +333,10 @@ internal static class ExternalBookBuilder
         List<LandRow> landRows;
         List<TitleRow> titleRows;
         List<CondoRow> condoRows;
-        BuildingRow? building;
         List<string> machineRegs;
         ValuationRow? valuation;
-        HashSet<string> methodTypes;
         int? machineSurveyedCount;
+        List<ParamRow> obligationParams;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -246,13 +352,10 @@ internal static class ExternalBookBuilder
             landRows = (await multi.ReadAsync<LandRow>()).ToList();
             titleRows = (await multi.ReadAsync<TitleRow>()).ToList();
             condoRows = (await multi.ReadAsync<CondoRow>()).ToList();
-            building = await multi.ReadFirstOrDefaultAsync<BuildingRow>();
             machineRegs = (await multi.ReadAsync<string>()).ToList();
             valuation = await multi.ReadFirstOrDefaultAsync<ValuationRow>();
-            methodTypes = (await multi.ReadAsync<string>())
-                .Where(m => !string.IsNullOrWhiteSpace(m))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             machineSurveyedCount = await multi.ReadFirstOrDefaultAsync<int?>();
+            obligationParams = (await multi.ReadAsync<ParamRow>()).ToList();
         }
 
         var customerName = customerNames.Count > 0
@@ -301,113 +404,54 @@ internal static class ExternalBookBuilder
             .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
 
-        // GPS: prefer land → condo
-        string? gps = null;
+        // GPS: prefer land → condo, in the same "N 13.000000 E 100.000000" form as everywhere else (ThaiAddressFormatter.FormatGps; null unless both coordinates exist).
         var firstLand = landRows.FirstOrDefault();
-        if (firstLand?.Latitude is not null && firstLand.Longitude is not null)
-            gps = $"Lat : {firstLand.Latitude:F6}  Lon : {firstLand.Longitude:F6}";
-        else
-        {
-            var firstCondo = condoRows.FirstOrDefault();
-            if (firstCondo?.CondoLatitude is not null && firstCondo.CondoLongitude is not null)
-                gps = $"Lat : {firstCondo.CondoLatitude:F6}  Lon : {firstCondo.CondoLongitude:F6}";
-        }
-
-        // Collateral location: prefer condo FormatCondo, else land FormatLandBuilding
-        string? collateralLocation = null;
-        if (condoRows.Count > 0)
-        {
-            var c = condoRows.First();
-            var fmt = ThaiAddressFormatter.FormatCondo(
-                roomNumber: c.RoomNumber,
-                floorNumber: c.FloorNumber,
-                buildingName: c.CondoName,
-                soi: c.CondoSoi,
-                road: c.CondoRoad,
-                subDistrict: c.CondoSubDistrict,
-                district: c.CondoDistrict,
-                province: c.CondoProvince);
-            collateralLocation = string.IsNullOrEmpty(fmt) ? null : fmt;
-        }
-        else if (firstLand is not null)
-        {
-            var fmt = ThaiAddressFormatter.FormatLandBuilding(
-                houseNumber: null,
-                village: firstLand.Village,
-                moo: null,
-                soi: firstLand.Soi,
-                road: firstLand.Road,
-                subDistrict: firstLand.SubDistrict,
-                district: firstLand.District,
-                province: firstLand.Province);
-            collateralLocation = string.IsNullOrEmpty(fmt) ? null : fmt;
-        }
+        var firstCondo = condoRows.FirstOrDefault();
+        string? gps = ThaiAddressFormatter.FormatGps(firstLand?.Latitude, firstLand?.Longitude)
+                      ?? ThaiAddressFormatter.FormatGps(firstCondo?.CondoLatitude, firstCondo?.CondoLongitude);
 
         // Title deed numbers and land area. The numbers are grouped under the name of the document
         // that carries them ("โฉนดที่ดินเลขที่ 1234, 1235 / น.ส.3 เลขที่ 5678") — the row used to
         // print bare numbers under a heading that assumed they were all title deeds (CA-609).
         // Groups keep the order their first parcel appeared in, which RS08 orders by property
         // sequence, so the kinds read in the same order as the property list above.
-        var numbersByPrefix = new Dictionary<string, List<string>>();
-        var prefixOrder = new List<string>();
-        foreach (var row in titleRows)
-        {
-            // Guarded here rather than with a Where(): nullable flow analysis cannot see through the
-            // lambda, so filtering outside the loop would leave row.TitleNumber nullable inside it.
-            if (string.IsNullOrWhiteSpace(row.TitleNumber)) continue;
+        var deeds = SummariseTitleDeeds(titleRows.Select(t => (t.TitleType, t.TitleNumber)));
+        string? titleDeedNumbers = deeds.Text;
+        int? totalTitleDeeds = deeds.Total > 0 ? deeds.Total : null;
 
-            var prefix = TitleDeedLabel.NumberPrefix(row.TitleType);
-            if (!numbersByPrefix.TryGetValue(prefix, out var numbers))
-            {
-                numbers = [];
-                numbersByPrefix[prefix] = numbers;
-                prefixOrder.Add(prefix);
-            }
-
-            if (!numbers.Contains(row.TitleNumber))
-                numbers.Add(row.TitleNumber);
-        }
-
-        string? titleDeedNumbers = prefixOrder.Count > 0
-            ? string.Join(" / ", prefixOrder.Select(p => $"{p} {string.Join(", ", numbersByPrefix[p])}"))
-            : null;
-        int? totalTitleDeeds = titleRows.Count > 0 ? titleRows.Count : null;
-
-        // Show the area line whenever any title exists (preserves the original output, including
-        // a "0 - 0 - 0" line for titles with no captured area); hide it only when there are no titles.
+        // The letter: show the area line whenever any title exists (preserves the original output, including a "0 - 0 - 0" line for titles with no captured
+        // area); hide it only when there are no titles. The summary page prints the same area in words (ThaiLandAreaFormatter.Describe), nothing when it is 0.
         string? landAreaText = titleRows.Count > 0
             ? ThaiLandAreaFormatter.FormatTotal(
                 titleRows.Sum(t => t.AreaRai ?? 0m),
                 titleRows.Sum(t => t.AreaNgan ?? 0m),
                 titleRows.Sum(t => t.AreaSquareWa ?? 0m))
             : null;
+        var deedSquareWa = titleRows.Sum(t => (t.AreaRai ?? 0m) * 400m + (t.AreaNgan ?? 0m) * 100m + (t.AreaSquareWa ?? 0m));
+        string? landAreaWords = deedSquareWa > 0m ? ThaiLandAreaFormatter.Describe(deedSquareWa) : null;
 
-        // Owners
-        string? landOwner = firstLand?.OwnerName;
-        string? condoOwner = condoRows.Count > 0 ? condoRows.First().CondoOwner : null;
-        string? buildingOwner = building?.BuildingOwner;
+        // Owners. The land and building owners and the อาคารสิ่งปลูกสร้าง row are built by AppraisalBookDataProvider from the loaded
+        // sections (LetterOwnerRows), so their numbering matches the book; the condo owners come from these rows.
+        string RoomLabel(int i) => ThaiAddressFormatter.RoomLabel(condoRows[i].CondoRoomNumber, i);
+        // The condo owner row is worded later by LetterOwnerRows.CondoOwners, once the book's body type (which decides its pointer) is known.
 
-        // Building details text
-        string? buildingDetailsText = null;
-        if (building is not null)
+        // Machinery registration numbers: one entry per number, runs of consecutive numbers collapsed.
+        var machineRegistrations = MachineRegistrationList.Build(machineRegs);
+
+        // Obligations: one item per condo room here; the lands' come from AppraisalBookDataProvider's loaded land sections, and LetterOwnerRows.Obligations
+        // combines both (so a land + condo book keeps the condo unit's mortgage) under the same "ไม่มี" rule. Machinery only prints nothing.
+        var obligationNames = obligationParams
+            .Where(p => !string.IsNullOrWhiteSpace(p.Code))
+            .GroupBy(p => p.Code!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Description, StringComparer.OrdinalIgnoreCase);
+        var condoObligations = condoRows.Select((c, i) => new ExternalObligationItem
         {
-            var bParts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(building.BuildingTypeDisplay))
-                bParts.Add(building.BuildingTypeDisplay);
-            if (building.NumberOfFloors.HasValue)
-                bParts.Add($"{building.NumberOfFloors:#,##0.##} ชั้น");
-            if (!string.IsNullOrWhiteSpace(building.ModelName))
-                bParts.Add($"แบบ {building.ModelName}");
-            buildingDetailsText = bParts.Count > 0 ? string.Join(" ", bParts) : null;
-        }
-
-        // Machinery registration numbers
-        string? machineRegNumbers = machineRegs.Count > 0 ? string.Join(", ", machineRegs) : null;
-
-        // Obligation: prefer land, fall back to condo
-        string? obligation = firstLand?.ObligationDetails;
-        if (string.IsNullOrWhiteSpace(obligation))
-            obligation = condoRows.FirstOrDefault()?.CondoObligationDetails;
+            Label = RoomLabel(i),
+            // An unverified owner reads "ไม่สามารถตรวจสอบได้" before the rooms are grouped, so it counts like any other text.
+            Owner = AppraisalSummaryCommonLoader.OwnerDisplay(c.CondoOwner, c.CondoOwnerVerified),
+            Mortgage = ObligationText.Mortgage(c.CondoObligationType, c.CondoMortgageDetails),
+            Others = ObligationText.Others(c.CondoObligationType, c.CondoObligationDetails, obligationNames)
+        }).ToList();
 
         // Property-type summary
         var condoUsableAreaTotal = condoRows.Sum(c => c.UsableArea ?? 0m);
@@ -448,13 +492,8 @@ internal static class ExternalBookBuilder
             ? string.Join(", ", summarySections)
             : null;
 
-        // Price method Thai labels (distinct, preserve insertion order of MethodTypeLabels map)
-        var methodLabels = MethodTypeLabels.Keys
-            .Where(k => methodTypes.Contains(k))
-            .Select(k => MethodTypeLabels[k])
-            .Distinct()
-            .ToList();
-        string? priceMethod = methodLabels.Count > 0 ? string.Join(", ", methodLabels) : null;
+        // ── Pricing: approach value table, selection reason, method line ─────────────
+        var pricing = await LoadPricingAsync(connection, appraisalId, cancellationToken);
 
         // Verify date: CompletedAt (external verify) or appraisalDate fallback
         DateTime? verifyDate = header.CompletedAt ?? appraisalDate;
@@ -478,32 +517,89 @@ internal static class ExternalBookBuilder
             CustomerName = customerName,
             AppraisalBookNumber = header.AppraisalNumber,
             PropertyTypeSummary = propertyTypeSummary,
-            CollateralLocation = collateralLocation,
+            CollateralLocation = summary.CollateralAddress,
+            ProjectAddress = summary.ProjectAddress,
+            CityPlan = string.IsNullOrWhiteSpace(summary.CityPlan) ? null : summary.CityPlan,
             VerifyDate = verifyDate,
             Gps = gps,
             TitleDeedNumbers = titleDeedNumbers,
             TotalTitleDeeds = totalTitleDeeds,
+            TitleDeedsSummarised = deeds.Summarised,
+            UnnumberedTitleDeeds = deeds.Unnumbered,
             LandAreaText = landAreaText,
-            LandOwner = landOwner,
-            BuildingDetailsText = buildingDetailsText,
-            BuildingOwner = buildingOwner,
-            CondoOwner = condoOwner,
-            MachineRegistrationNumbers = machineRegNumbers,
-            Obligation = string.IsNullOrWhiteSpace(obligation) ? null : obligation,
-            PriceMethod = priceMethod,
+            LandAreaWords = landAreaWords,
+            TitleDeedGroups = deeds.GroupedText,
+            MachineRegistrations = machineRegistrations,
+            CondoObligationItems = condoObligations,
+            PriceMethod = pricing.PriceMethod,
+            ApproachValues = pricing.Rows,
+            ApproachValuesMultiGroup = pricing.MultiGroup,
+            SelectionReason = pricing.Reason,
             AppraisalDate = appraisalDate,
             CollateralValue = valuation?.AppraisedValue,
             ForcedSaleValue = valuation?.ForcedSaleValue,
+            ForceSaleRate = BookForceSaleRate.Resolve(valuation?.ForceSaleRate, valuation?.ProjectForceSalePercentage, forceSaleRateDefault),
             BuildingCoverageAmount = valuation?.InsuranceValue,
-            SurveyorName = assignment?.ExternalAppraiserName,
-            CheckerName = null,      // Deferred: no source column in current schema
-            VerifyName = null,       // Deferred: no source column in current schema
-            VerifyLicenseNo = null,  // Deferred: no source column in current schema
-            DirectorName = null,     // Deferred: no source column in current schema
         };
     }
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
+
+    private sealed class ApproachRow
+    {
+        public int GroupNumber { get; init; }
+        public string? GroupName { get; init; }
+        public Guid ApproachId { get; init; }
+        public string? ApproachType { get; init; }
+        public bool IsSelected { get; init; }
+        public decimal? ApproachValue { get; init; }
+        public string? Remark { get; init; }
+    }
+
+    /// <summary>The letter's เอกสารสิทธิ์ที่ดิน row: the text, the deed count, and whether the text is a per-type summary.</summary>
+    internal sealed record TitleDeedSummary(string? Text, int Total, bool Summarised, int Unnumbered, string? GroupedText = null);
+
+    /// <summary>Above this many numbered deeds the letter prints a count per document type instead of the numbers.</summary>
+    private const int MaxListedDeeds = 10;
+
+    /// <summary>
+    /// Numbers are grouped under the name of the document that carries them ("โฉนดที่ดินเลขที่ 1234, 1235 / น.ส.3 เลขที่ 5678" — CA-609),
+    /// in the order each kind first appeared (RS08 orders by property sequence). A deed is a distinct (type, number); a row with no number
+    /// (blank or "-") is counted in <c>Total</c> and in <c>Unnumbered</c> but cannot be listed, so the count and the list always agree.
+    /// With more than <see cref="MaxListedDeeds"/> numbered deeds the letter's text is "โฉนดที่ดิน จำนวน 48 ฉบับ / น.ส.3 ก. จำนวน 2 ฉบับ"
+    /// and the template adds where the deeds are listed.
+    /// </summary>
+    internal static TitleDeedSummary SummariseTitleDeeds(IEnumerable<(string? TitleType, string? TitleNumber)> rows)
+    {
+        var byKind = new List<(string Prefix, string Noun, List<string> Numbers)>();
+        var unnumbered = 0;
+        foreach (var (type, rawNumber) in rows)
+        {
+            if (ThaiAddressFormatter.Stated(rawNumber) is not { } number) { unnumbered++; continue; }
+
+            var prefix = TitleDeedLabel.NumberPrefix(type);
+            var kind = byKind.FindIndex(k => k.Prefix == prefix);
+            if (kind < 0) { byKind.Add((prefix, TitleDeedLabel.Noun(type), [])); kind = byKind.Count - 1; }
+            if (!byKind[kind].Numbers.Contains(number)) byKind[kind].Numbers.Add(number);
+        }
+
+        var numbered = byKind.Sum(k => k.Numbers.Count);
+        if (numbered == 0)
+            return new TitleDeedSummary(null, unnumbered, false, unnumbered, null);
+
+        var summarised = numbered > MaxListedDeeds;
+        // The company letter's row: the numbers grouped under the name of the document that carries them, "โฉนดที่ดินเลขที่ 1, 2, 3 / น.ส.3 เลขที่ 5"
+        // (CA-609); above 10 deeds a count per type, "โฉนดที่ดิน จำนวน 48 ฉบับ / น.ส.3 ก. จำนวน 2 ฉบับ".
+        var text = string.Join(" / ", byKind.Select(k => summarised
+            ? $"{k.Noun} จำนวน {k.Numbers.Count} ฉบับ"
+            : $"{k.Prefix} {string.Join(", ", k.Numbers)}"));
+        // The summary page's ที่ดิน line reads the same deeds as running Thai text: "โฉนดที่ดินเลขที่ 101, 102 และ 103 และ น.ส.3 ก. เลขที่ 204"; above 10 deeds
+        // "โฉนดที่ดิน จำนวน 40 ฉบับ และ น.ส.3 ก. จำนวน 5 ฉบับ".
+        var grouped = string.Join(" และ ", byKind.Select(k => summarised
+            ? $"{k.Noun} จำนวน {k.Numbers.Count} ฉบับ"
+            : $"{k.Prefix} {ThaiTextList.Join(k.Numbers)}"));
+        return new TitleDeedSummary(text, numbered + unnumbered, summarised, unnumbered, grouped);
+    }
 
     private sealed class HeaderRow
     {
@@ -515,7 +611,6 @@ internal static class ExternalBookBuilder
     private sealed class AssignmentRow
     {
         public string? AssigneeCompanyId { get; init; }
-        public string? ExternalAppraiserName { get; init; }
     }
 
     private sealed class CompanyRow
@@ -535,14 +630,9 @@ internal static class ExternalBookBuilder
     private sealed class LandRow
     {
         public Guid LandDetailId { get; init; }
-        public string? OwnerName { get; init; }
         public string? ObligationDetails { get; init; }
-        public string? Village { get; init; }
-        public string? Soi { get; init; }
-        public string? Road { get; init; }
-        public string? SubDistrict { get; init; }
-        public string? District { get; init; }
-        public string? Province { get; init; }
+        public string? ObligationType { get; init; }
+        public string? MortgageDetails { get; init; }
         public decimal? Latitude { get; init; }
         public decimal? Longitude { get; init; }
     }
@@ -559,33 +649,23 @@ internal static class ExternalBookBuilder
     private sealed class CondoRow
     {
         public string? CondoOwner { get; init; }
+        public bool? CondoOwnerVerified { get; init; }
+        public string? CondoRoomNumber { get; init; }
         public string? CondoObligationDetails { get; init; }
-        public string? RoomNumber { get; init; }
-        public string? FloorNumber { get; init; }
-        public string? CondoName { get; init; }
-        public string? CondoSoi { get; init; }
-        public string? CondoRoad { get; init; }
-        public string? CondoSubDistrict { get; init; }
-        public string? CondoDistrict { get; init; }
-        public string? CondoProvince { get; init; }
+        public string? CondoObligationType { get; init; }
+        public string? CondoMortgageDetails { get; init; }
         public decimal? CondoLatitude { get; init; }
         public decimal? CondoLongitude { get; init; }
         public decimal? UsableArea { get; init; }
-    }
-
-    private sealed class BuildingRow
-    {
-        public string? BuildingTypeDisplay { get; init; }
-        public decimal? NumberOfFloors { get; init; }
-        public string? ModelName { get; init; }
-        public string? BuildingOwner { get; init; }
     }
 
     private sealed class ValuationRow
     {
         public decimal? AppraisedValue { get; init; }
         public decimal? ForcedSaleValue { get; init; }
+        public decimal? ForceSaleRate { get; init; }
         public decimal? InsuranceValue { get; init; }
+        public decimal? ProjectForceSalePercentage { get; init; }
     }
 
     private sealed class ParamRow

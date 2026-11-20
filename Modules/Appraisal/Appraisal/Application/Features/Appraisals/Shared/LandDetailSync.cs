@@ -90,14 +90,18 @@ public static class LandDetailSync
         foreach (var id in deductionsToRemove)
             landDetail.RemoveDeduction(id);
 
+        // The incoming list order wins, as for titles: every row is stamped with its 1-based position.
+        var sequence = 0;
         foreach (var data in incomingDeductions)
         {
+            sequence++;
             if (data.Id.HasValue)
             {
                 var existing = landDetail.Deductions.FirstOrDefault(d => d.Id == data.Id.Value);
                 if (existing is not null)
                 {
                     existing.ChangeReason(data.ReasonCode);
+                    existing.SetSequenceNumber(sequence);
                     existing.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
                 }
             }
@@ -105,6 +109,7 @@ public static class LandDetailSync
             {
                 var deduction = LandAreaDeduction.Create(landDetail.Id, data.ReasonCode);
                 deduction.Update(data.ReasonOther, data.AreaInSqWa, data.Remark);
+                deduction.SetSequenceNumber(sequence);
                 landDetail.AddDeduction(deduction);
             }
         }

@@ -136,6 +136,9 @@ public sealed class AppraisalSummaryModel
     /// <summary>Field 22 — Forced sale value (70% of total appraisal value by convention).</summary>
     public decimal? ForcedSaleValue { get; init; }
 
+    /// <summary>The force-sale rate in percent that stands behind <see cref="ForcedSaleValue"/> (appraisal override, else the project's, else the system default); printed as "(70%)" in the conclusion. Null when it is not known.</summary>
+    public decimal? ForceSaleRate { get; init; }
+
     // ── Under-construction split (land & building summary only) ──────────────────
     // When some property carries a construction inspection below 100%, the ราคาประเมิน column
     // splits into เมื่อแล้วเสร็จ 100% (the figures above) and ตามสภาพปัจจุบัน (the two below),
@@ -163,13 +166,13 @@ public sealed class AppraisalSummaryModel
     // ── Property attributes ───────────────────────────────────────────────────────
 
     /// <summary>Field 23 — Land owner name.</summary>
-    public string? LandOwner { get; init; }
+    public string? LandOwner { get; set; }
 
     /// <summary>Field 24 — Entry/exit rights description.</summary>
     public string? EntryExitRights { get; init; }
 
     /// <summary>Field 25 — Building owner name.</summary>
-    public string? BuildingOwner { get; init; }
+    public string? BuildingOwner { get; set; }
 
     /// <summary>Field 26 — Land condition / obligation description (joined fallback).</summary>
     public string? LandCondition { get; init; }
@@ -184,8 +187,14 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public const string NoObligationText = "ไม่มีภาระผูกพัน";
 
-    /// <summary>Field 27 — Obligation (encumbrance) details.</summary>
+    /// <summary>Field 27 — Obligation (encumbrance) details. Machinery only: land, building and condo print the two lines below.</summary>
     public string? Obligation { get; init; }
+
+    /// <summary>Field 27 — ภาระผูกพันการจำนอง ("ไม่มี" when not mortgaged). Land, building and condo.</summary>
+    public string? ObligationMortgage { get; set; }
+
+    /// <summary>Field 27 — ภาระผูกพันอื่นๆ ("ไม่มี" when none). Land, building and condo.</summary>
+    public string? ObligationOthers { get; set; }
 
     /// <summary>Field 28 — Urban planning / city plan colour (UrbanPlanningType).</summary>
     public string? CityPlan { get; init; }
@@ -318,6 +327,9 @@ public sealed class AppraisalSummaryModel
     /// external assignment path, the internal appraiser's own opinion on the internal path.</summary>
     public string? AppraiserComment { get; init; }
 
+    /// <summary>Section 5.2 สมมติฐานเพิ่มเติม / พิเศษ — the Decision Summary textarea (AppraisalDecisions.AdditionalAssumptions), line breaks kept.</summary>
+    public string? AdditionalAssumptions { get; init; }
+
     // ── Sign-off ──────────────────────────────────────────────────────────────────
 
     /// <summary>Field 40 — Staff appraiser full name.</summary>
@@ -414,20 +426,42 @@ public sealed class AppraisalSummaryModel
     public string? Subject { get; set; }
     /// <summary>Property-type summary string (e.g. "บ้านเดี่ยว จำนวน 1 หลัง เนื้อที่ …").</summary>
     public string? PropertyTypeSummary { get; set; }
+    /// <summary>The cover's centred property block (what it is / how big / where), from <c>CoverNarrative</c>. Empty for the body types it does not cover; the cover then keeps its ประเภททรัพย์สิน / ที่ตั้งทรัพย์สิน lines.</summary>
+    public IReadOnlyList<string> CoverLines { get; set; } = [];
+
+    // ── external book: the สรุปผลการประเมินมูลค่าทรัพย์สิน page (written by AppraisalBookDataProvider for the external book only) ─────
+    /// <summary>"ตั้งอยู่…": the cover's address line, multi-line allowed; null when there is no address.</summary>
+    public string? LocationText { get; set; }
+    /// <summary>รายละเอียดทรัพย์สิน: one block per part that exists (ที่ดิน, สิ่งปลูกสร้าง, ห้องชุด, เครื่องจักร).</summary>
+    public IReadOnlyList<ExternalPropertyBlock> PropertyBlocks { get; set; } = [];
+    /// <summary>The condo units' obligation texts, one item per room (ExternalBookBuilder); LetterOwnerRows.Obligations combines them with the lands' into the ภาระผูกพัน rows.</summary>
+    public IReadOnlyList<ExternalObligationItem> CondoObligationItems { get; set; } = [];
+    /// <summary>การรอนสิทธิ: every deed's text ("ไม่มี" when none), several entries on separate lines; null when there is no land.</summary>
+    public string? EvictionText { get; set; }
+    /// <summary>The approach(es) the valuation used, in words ("วิธีต้นทุน (Cost Approach)"); null when none is known.</summary>
+    public string? ApproachMethodsText { get; set; }
     /// <summary>Composed collateral location (ThaiAddressFormatter) for the external cover/letter.</summary>
     public string? CollateralLocation { get; set; }
     /// <summary>Comma-joined land title deed numbers.</summary>
     public string? TitleDeedNumbers { get; set; }
+    /// <summary>The summary page's deed text: the same deeds as running Thai text ("โฉนดที่ดินเลขที่ 101, 102 และ 103 และ น.ส.3 ก. เลขที่ 204"; above 10 a count per type).</summary>
+    public string? TitleDeedGroups { get; set; }
     /// <summary>Total count of land title deeds.</summary>
     public int? TotalTitleDeeds { get; set; }
-    /// <summary>Land area formatted "{rai} - {ngan} - {wa} ไร่ หรือ {totalSqWa} ตารางวา".</summary>
+    /// <summary>True when <see cref="TitleDeedNumbers"/> is a count per document type (more than 10 numbered deeds) rather than the numbers; the letter then points at the section that lists them.</summary>
+    public bool TitleDeedsSummarised { get; set; }
+    /// <summary>Deeds with no number: counted in <see cref="TotalTitleDeeds"/> but not listed.</summary>
+    public int UnnumberedTitleDeeds { get; set; }
+    /// <summary>The company letter's land area formatted "{rai} - {ngan} - {wa} ไร่ หรือ {totalSqWa} ตารางวา".</summary>
     public string? LandAreaText { get; set; }
+    /// <summary>The summary page's land area on the title documents in words ("2 ไร่ 2 งาน 66 ตารางวา (หรือ 1,066 ตารางวา)", <c>ThaiLandAreaFormatter.Describe</c>); null when no title carries an area.</summary>
+    public string? LandAreaWords { get; set; }
     /// <summary>Building details text ("{type} {floors} ชั้น แบบ {model}").</summary>
     public string? BuildingDetailsText { get; set; }
     /// <summary>Condo owner name.</summary>
     public string? CondoOwner { get; set; }
-    /// <summary>Comma-joined machinery registration numbers.</summary>
-    public string? MachineRegistrationNumbers { get; set; }
+    /// <summary>The machinery registration numbers, deduplicated, with runs of consecutive numbers collapsed (<c>MachineRegistrationList</c>); one entry per line on the letter.</summary>
+    public IReadOnlyList<string> MachineRegistrations { get; set; } = [];
     /// <summary>Comma-joined Thai pricing-method labels.</summary>
     public string? PriceMethod { get; set; }
     /// <summary>
@@ -437,16 +471,29 @@ public sealed class AppraisalSummaryModel
     /// <see cref="BuildingCoverageAmount"/> (same ValuationAnalyses.InsuranceValue source).
     /// </summary>
     public decimal? CollateralValue { get; set; }
-    /// <summary>Surveyor / field appraiser name (ผู้สำรวจ) on the company letter.</summary>
-    public string? SurveyorName { get; set; }
-    /// <summary>Checker name (ผู้ตรวจสอบรายงาน) on the company-letter signature block.</summary>
-    public string? CheckerName { get; set; }
-    /// <summary>Verifier name (ผู้ประเมินหลักชั้นวุฒิ) on the company-letter signature block.</summary>
-    public string? VerifyName { get; set; }
-    /// <summary>Verifier license number.</summary>
-    public string? VerifyLicenseNo { get; set; }
-    /// <summary>Director / authorized signatory name.</summary>
-    public string? DirectorName { get; set; }
+
+    // ── book-core: internal front page fan-out + company-letter additions ─────────────
+    // Written by AppraisalBookDataProvider / ExternalBookBuilder only.
+
+    /// <summary>
+    /// Internal book only. The FURTHER summary forms behind the front page when the appraisal fans out to
+    /// several (land-building, then condo, then machine — exactly the forms appraisal-summary renders). The
+    /// first form is this model itself; the template swaps `model` for each of these in turn, so every form
+    /// reads the same fields it does in the standalone summary. Empty for every other appraisal.
+    /// </summary>
+    public IReadOnlyList<AppraisalSummaryModel> ExtraSummaryForms { get; set; } = [];
+
+    /// <summary>Company letter: one row per analysed approach (selected one + reference ones), see <see cref="ApproachValueRow"/>.</summary>
+    public IReadOnlyList<ApproachValueRow> ApproachValues { get; set; } = [];
+
+    /// <summary>Company letter: เหตุผลการเลือกวิธีประเมิน — PricingAnalysis.Remark (per group when several).</summary>
+    public string? SelectionReason { get; set; }
+
+    /// <summary>Company letter: true when the appraisal has more than one property group, so the value table shows a กลุ่มที่ column.</summary>
+    public bool ApproachValuesMultiGroup { get; set; }
+
+    /// <summary>Section 5.1 วิธีการประเมินมูลค่า, as paragraphs (see <see cref="Reporting.Application.Providers.PricingNarrative"/>); empty when no approach was analysed.</summary>
+    public IReadOnlyList<string> PriceMethodNarrative { get; set; } = [];
 
     // ── Composite section props (rendered by the unified appraisal-book template) ──
     // Set only by AppraisalBookDataProvider (loaded once for every variant).
@@ -457,6 +504,41 @@ public sealed class AppraisalSummaryModel
     /// group-major ("กลุ่มที่ N → its land(s) → its building(s)"). Empty when neither present.
     /// </summary>
     public IReadOnlyList<PropertyGroupDetail> PropertyGroups { get; set; } = [];
+
+    /// <summary>Every land section of every property group, in group order — what the land + building book prints under
+    /// ทำเลที่ตั้ง / เอกสารสิทธิ์ / รายละเอียดที่ดิน, which are organised by topic rather than by group.</summary>
+    public IReadOnlyList<LandSection> AllLands => PropertyGroups.SelectMany(g => g.Lands).ToList();
+
+    /// <summary>Every building section of every property group, in group order.</summary>
+    public IReadOnlyList<BuildingSection> AllBuildings => PropertyGroups.SelectMany(g => g.Buildings).ToList();
+
+    /// <summary>ส่วนพัฒนา items / photos across every group (the construction flow has no per-group pages).</summary>
+    public IReadOnlyList<DevelopmentItem> AllDevelopmentItems => PropertyGroups.SelectMany(g => g.DevelopmentItems).ToList();
+    public IReadOnlyList<string> AllDevelopmentPhotos => AllBuildings.Where(b => b.IsDevelopmentOnly && b.PhotoSrc != null).Select(b => b.PhotoSrc!).Take(3).ToList();
+
+    /// <summary>
+    /// The groups the valuation chapter walks: every property group, plus any group that has a pricing page but no land or
+    /// building (a machine-only or lease-only group is left out of <see cref="PropertyGroups"/>), in group order.
+    /// </summary>
+    public IReadOnlyList<PropertyGroupDetail> PricingGroups
+    {
+        get
+        {
+            var pricing = new (int Number, string? Name)[0]
+                .Concat(WqsSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(SaleGridSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(CostMachineSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(IncomeSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(ProfitRentSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(LeaseholdSections.Select(s => (s.GroupNumber, s.GroupName)))
+                .Concat(HypothesisSections.Select(s => (s.GroupNumber, s.GroupName)));
+            var groups = PropertyGroups.ToList();
+            foreach (var (number, name) in pricing)
+                if (groups.All(g => g.GroupNumber != number))
+                    groups.Add(new PropertyGroupDetail { GroupNumber = number, GroupName = name });
+            return groups.OrderBy(g => g.GroupNumber).ToList();
+        }
+    }
 
     /// <summary>Construction progress section (§2.1.2.6). Null when not included in this report.</summary>
     public ConstructionSection? ConstructionSection { get; set; }
@@ -493,6 +575,9 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public IReadOnlyList<CostMachineSection> CostMachineSections { get; set; } = [];
 
+    /// <summary>PropertyGroups.GroupNumber → the AppraisalProperties.PropertyType codes the group holds (L, LB, B, U, MAC ...). Read by ComparisonSubject.</summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<string>> GroupPropertyTypes { get; set; } = new Dictionary<int, IReadOnlyList<string>>();
+
     // ── Part B — new pricing-method sections ─────────────────────────────────────
 
     /// <summary>
@@ -519,6 +604,9 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public IReadOnlyList<HypothesisSection> HypothesisSections { get; set; } = [];
 
+    /// <summary>The appraiser's Law &amp; Regulation records (book section 4). Empty -> the book prints the land-field fallback.</summary>
+    public IReadOnlyList<LawRecord> LawRecords { get; set; } = [];
+
     /// <summary>Appendix image section (§2.1.2.12+). Null when no image entries exist.</summary>
     public AppendixSection? AppendixSection { get; set; }
 
@@ -530,6 +618,12 @@ public sealed class AppraisalSummaryModel
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<Guid>> AttachmentsBySlot { get; set; }
         = new Dictionary<string, IReadOnlyList<Guid>>();
+
+    // ── book-types ──────────────────────────────────────────────────────────────────
+    // Block (project) pages of the book; written by AppraisalBookDataProvider via BlockBookSectionLoader.
+
+    /// <summary>Block project pages (project land / detail / per-model / analysis / unit tables). Null for a non-project appraisal.</summary>
+    public BlockBookSection? BlockSection { get; set; }
 }
 
 /// <summary>
@@ -679,6 +773,15 @@ public sealed class SummaryGroupRow
     /// <summary>Total land area in square-wa (rai×400 + ngan×100 + sqwa). Cost approach only.</summary>
     public decimal? TotalSquareWa { get; init; }
 
+    /// <summary>
+    /// The appraised land area as the book's section 6 cost summary prints it: "2 ไร่ 2 งาน 66 ตร.ว. (หรือ 1,066 ตารางวา)" (zero leading units dropped, see Describe), carried from
+    /// <see cref="TotalSquareWa"/> by <see cref="Reporting.Application.Formatting.ThaiLandAreaFormatter"/> (400 wa = 1 rai, 100 wa = 1 ngan).
+    /// Null when there is no area.
+    /// </summary>
+    public string? LandAreaText => TotalSquareWa is > 0m and var wa
+        ? Reporting.Application.Formatting.ThaiLandAreaFormatter.Describe(wa, "ตร.ว.")
+        : null;
+
     // ── Market/combined land columns ──────────────────────────────────────────────
     // Separate from TotalSquareWa/LandUnitPrice above, which the cost branch owns.
 
@@ -743,6 +846,10 @@ public sealed class SummaryGroupRow
     // ── Per-property-type subtotals (รวมมูลค่าที่ดิน / รวมมูลค่าสิ่งปลูกสร้าง) ──────────────
     // Rendered only on a SINGLE-group split report; multi-group keeps the group subtotal instead.
 
+    /// <summary>True when the stored land value is not the system's own figure (area x rate, rounded to the nearest 1,000):
+    /// the appraiser typed it over ("แก้เอง"). The book then words the land line "(ผู้ประเมินกำหนด)" instead of "(ปัดเศษ)".</summary>
+    public bool LandValueOverridden { get; init; }
+
     /// <summary>รวมมูลค่าที่ดิน — the land block's subtotal (PricingFinalValues.LandValue).</summary>
     public decimal? LandSubtotal { get; init; }
 
@@ -751,6 +858,22 @@ public sealed class SummaryGroupRow
     /// completed / under-construction partition; it is what the appraisal-level
     /// current-condition figures are derived from, so it must stay whole-group.</summary>
     public decimal? BuildingSubtotal { get; init; }
+
+    /// <summary>The building value the appraiser typed on the Building Cost method (ด้วยตนเอง) — the figure the approach value
+    /// actually contains. Null unless that method is manual; <see cref="BuildingSubtotal"/> then stays the calculated rows' total
+    /// when the building is under construction.</summary>
+    public decimal? BuildingManualValue { get; init; }
+
+    /// <summary>The note on that manual value (PricingAnalysisMethods.Remark); null when empty.</summary>
+    public string? BuildingManualRemark { get; init; }
+
+    /// <summary>The system's building total: the Σ of the buildings' rows (each building's keyed cost value, or its depreciation
+    /// rows rounded to the thousand) — what the Building Cost screen shows as "Total Building Cost Value". Null when 0.</summary>
+    public decimal? BuildingSubtotalComputed { get; init; }
+
+    /// <summary>The building value the appraiser set when it is NOT the computed total (typed on the Building Cost method).
+    /// Null when the value used is the computed total.</summary>
+    public decimal? BuildingOverrideValue { get; init; }
 
     /// <summary>รวมมูลค่าสิ่งปลูกสร้าง at the current construction progress. Same as
     /// <see cref="BuildingSubtotal"/> when nothing in the group is under construction.</summary>

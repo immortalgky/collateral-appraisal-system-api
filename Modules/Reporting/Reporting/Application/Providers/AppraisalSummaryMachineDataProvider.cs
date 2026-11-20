@@ -44,10 +44,33 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
         var forceSaleRateDefault = await configReader.GetDecimalAsync("ForceSaleRateDefaultPct", 70m, cancellationToken);
 
+        var model = await BuildAsync(connection, appraisalId, forceSaleRateDefault, includePropertyRemarks: true, cancellationToken);
+
+        logger.LogDebug(
+            "AppraisalSummaryMachine model assembled for appraisal {AppraisalId}: " +
+            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
+            appraisalId, model.Groups.Count, model.Approvers.Count, model.ShowMeeting);
+
+        return model;
+    }
+
+    /// <summary>
+    /// Builds the machine summary model from an open connection. Called by <see cref="GetModelAsync"/> (standalone
+    /// form) and by <c>AppraisalBookDataProvider</c> (the internal book's front page).
+    /// <paramref name="includePropertyRemarks"/> is false for the book, whose property sections already print
+    /// each property's หมายเหตุ: the batch then selects NULL for it (same switch as the land-building form).
+    /// </summary>
+    internal static async Task<AppraisalSummaryModel> BuildAsync(
+        System.Data.IDbConnection connection,
+        Guid appraisalId,
+        decimal forceSaleRateDefault,
+        bool includePropertyRemarks,
+        CancellationToken cancellationToken)
+    {
         // ── Common data (Q1–Q14 + ColTypeMap) ───────────────────────────────────
         var common = await AppraisalSummaryCommonLoader.LoadAsync(connection, appraisalId, forceSaleRateDefault, cancellationToken);
         if (common is null)
-            throw new NotFoundException("Appraisal", entityId);
+            throw new NotFoundException("Appraisal", appraisalId.ToString());
 
         // ── Batch: 2 machine-specific result sets, single round-trip ─────────────
         const string batchSql = """
@@ -93,7 +116,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
                 mad.InstallationStatus,
                 mad.IsPriceCertified,
                 mad.ConditionUse,
-                mad.Remark,
+                CASE WHEN @IncludePropertyRemarks = 1 THEN mad.Remark END AS Remark,
                 mv.FairMarketValue AS AppraisedValue
             FROM appraisal.PropertyGroupItems pgi
             JOIN appraisal.AppraisalProperties ap ON ap.Id = pgi.AppraisalPropertyId
@@ -141,6 +164,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
 
         var p = new DynamicParameters();
         p.Add("AppraisalId", appraisalId);
+        p.Add("IncludePropertyRemarks", includePropertyRemarks);
 
         MachSummaryRow? machSummary;
         List<GroupMachineDetailRow> groupMachineRows;
@@ -301,6 +325,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             TotalAppraisalValue = summaryGroups.Count > 0 ? machineAppraisalValue ?? 0m : common.TotalAppraisalValue,
             BuildingCoverageAmount = machineAppraisalValue,
             ForcedSaleValue = machineForcedSaleValue,
+            ForceSaleRate = common.ForceSaleRate,
             Condition = common.Condition,
             Remark = common.Remark,
             // กรรมสิทธิ์เครื่องจักร = registered title holder. Prefer the appraisal-level
@@ -330,6 +355,7 @@ public sealed class AppraisalSummaryMachineDataProvider(
             IsLeasehold = methodFlags.IsLeasehold,
             IsProfitRent = methodFlags.IsProfitRent,
             AppraiserComment = common.AppraiserComment,
+            AdditionalAssumptions = common.AdditionalAssumptions,
             AppraisalStaffName = common.StaffName,
             AppraisalStaffPosition = common.StaffPosition,
             AppraisalCheckerName = common.CheckerName,
@@ -345,11 +371,6 @@ public sealed class AppraisalSummaryMachineDataProvider(
             Approvers = common.Approvers,
             ApproverSummaryComment = common.CommitteeOpinion
         };
-
-        logger.LogDebug(
-            "AppraisalSummaryMachine model assembled for appraisal {AppraisalId}: " +
-            "{GroupCount} groups, {ApproverCount} approvers, showMeeting={ShowMeeting}",
-            appraisalId, summaryGroups.Count, common.Approvers.Count, common.ShowMeeting);
 
         return model;
     }

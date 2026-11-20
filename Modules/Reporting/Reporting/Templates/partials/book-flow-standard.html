@@ -1,0 +1,158 @@
+{{~ # Partial: the land + building book (model.body_type == "standard"): sections 1-4 here, 5-8 in book-flow-tail. ~}}
+{{ include 'partials/book-funcs' }}
+{{- multi_land = model.all_lands.size > 1; multi_grp = model.property_groups.size > 1 -}}
+{{~ # ═══════════════ 1. ทำเลที่ตั้งทรัพย์สิน ═══════════════ ~}}
+{{ if model.all_lands.size > 0 }}
+{{ part_kind = 'body'; part_id = 's1'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>1.</span><span>ทำเลที่ตั้งทรัพย์สิน</span></div>
+
+<div class="bk-keep">
+<div class="bk-h2"><span>1.1</span><span>ที่ตั้งทรัพย์สินที่ประเมิน</span></div>
+{{ pic = appx_img 'BRIEF_MAP' 'DETAILED_MAP' 'EARTH_MAP' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+<div class="vk">
+  {{ addr = '' }}
+  {{ if model.collateral_address }}{{ addr = model.collateral_address }}{{ else if model.collateral_location }}{{ addr = model.collateral_location }}{{ end }}
+  {{ if addr == '' }}{{ for ls in model.all_lands }}{{ addr = addr == '' ? (place ls) : addr + "\n" + (place ls) }}{{ end }}{{ end }}
+  {{ vk 'ที่ตั้ง' addr }}
+  {{ for ls in model.all_lands }}{{ vk ('พิกัด' + (lsuf ls (for.index + 1))) (gps ls.latitude ls.longitude) }}{{ end }}
+  {{ for ls in model.all_lands }}{{ vk ('ระยะห่างจากถนนสายหลัก' + (lsuf ls (for.index + 1))) (fx ls.distance_from_main_road) 'เมตร' }}{{ end }}
+</div>
+</div>
+
+{{ include 'partials/book-land-location' }}
+</div>
+
+{{~ # ═══════════════ 2. เอกสารสิทธิ์ — one table for every title ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's2'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>2.</span><span>เอกสารสิทธิ์</span></div>
+{{ legal_in_31 = true }}{{ include 'partials/book-title-docs' }}{{ legal_in_31 = false }}
+</div>
+{{ end }}
+
+{{~ # ═══════════════ 3. ทรัพย์สินที่ประเมินมูลค่า — one numbered heading per group's land and per group's buildings ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's3'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>3.</span><span>ทรัพย์สินที่ประเมินมูลค่า</span></div>
+{{ n3 = 0; land_k = 0; bld_k = 0; land_pic = false; bld_pic = false }}
+{{ for grp in model.property_groups }}
+{{ if grp.lands.size > 0 }}
+{{ n3 = n3 + 1 }}
+<div class="bk-h2"><span>3.{{ n3 }}</span><span>{{ if multi_grp && grp.group_number > 0 }}{{ glabel grp }} · {{ end }}รายละเอียดที่ดิน{{ if multi_grp }} ({{ tnums grp.lands }}){{ end }}</span></div>
+{{ if !land_pic }}{{ land_pic = true }}{{ pic = appx_img 'LAND_PLAN' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}{{ end }}
+{{ for ls in grp.lands }}
+{{ land_k = land_k + 1 }}
+{{ if grp.lands.size > 1 }}{{ lhead ls land_k }}{{ end }}
+<div class="vk bk-keep">
+  {{ vk 'รูปแปลงที่ดิน' ls.land_description }}
+  {{ vk 'ตำแหน่งแปลงที่ดิน' ls.plot_location_type }}
+  {{ vk 'สภาพที่ดิน' (ls.land_fill ? ls.land_fill + (ls.land_fill_percent > 0 && ls.land_fill_percent < 100 ? ' (' + (fx ls.land_fill_percent) + '%)' : '') : null) }}
+  {{ vk 'ระดับดิน' (fx ls.soil_level) 'ม. เทียบกับถนน' }}
+  {{ if (ls.pond_area ?? 0) > 0 || (ls.pond_depth ?? 0) > 0 }}
+  {{ vk 'เนื้อที่บ่อน้ำ' (fx ls.pond_area) 'ตารางวา' }}
+  {{ vk 'ความลึกบ่อน้ำ' (fx ls.pond_depth) 'เมตร' }}
+  {{ end }}
+</div>
+{{~ # ลักษณะทางกายภาพ is free text (up to 4000 chars): a sub-heading and a full-width paragraph, not a label : value row; nothing prints when it is blank. ~}}
+{{ if ls.land_description_text && (ls.land_description_text | string.strip) != '' }}
+<div class="vk-sub">ลักษณะทางกายภาพ</div>
+<div style="white-space:pre-line;overflow-wrap:anywhere;line-height:1.75;font-size:10.5pt;padding-left:14px;">{{ ls.land_description_text }}</div>
+{{ end }}
+{{ if ls.boundaries && ls.boundaries.size > 0 }}
+<div class="vk-sub">อาณาเขต</div>
+<table class="vt">
+  <thead><tr><th style="width:24%;">ทิศ</th><th style="width:20%;">ระยะ (เมตร)</th><th>ติดต่อกับ</th></tr></thead>
+  <tbody>
+    {{ for b in ls.boundaries }}<tr><td>{{ b.direction }}</td><td class="r">{{ nz (f2 b.distance) }}</td><td>{{ nz b.adjacent }}</td></tr>{{ end }}
+  </tbody>
+</table>
+{{ end }}
+{{~ # ข้อจำกัดของหลักประกัน (the two yes / no rows, แนวเวนคืน and แนวเขตป่าไม้) follows อาณาเขต, then ข้อจำกัดอื่นๆ ที่พบ closes the land. ~}}
+{{ include 'partials/book-legal-limits' }}
+{{~ # ข้อจำกัดอื่นๆ ที่พบ (the form's free-text legal-limits box) sits last in 3.1, shaped like ลักษณะทางกายภาพ; nothing prints when it is blank. ~}}
+{{ if ls.other_legal_limitations && (ls.other_legal_limitations | string.strip) != '' }}
+<div class="vk-sub">ข้อจำกัดอื่นๆ ที่พบ</div>
+<div style="white-space:pre-line;overflow-wrap:anywhere;line-height:1.75;font-size:10.5pt;padding-left:14px;">{{ ls.other_legal_limitations }}</div>
+{{ end }}
+{{ end }}
+{{ end }}
+{{ if grp.real_buildings.size > 0 }}
+{{ n3 = n3 + 1 }}
+{{~ # Buildings the appraiser chose not to value (IsAppraisable == false) are not table rows and not in the total; they are noted under the table. ~}}
+{{ appr = []; excl = []; notes = []; dev_appr = [] }}{{ for b in grp.real_buildings }}{{ if b.is_appraisable == false }}{{ excl = excl | array.add b }}{{ notes = notes | array.add (excl_line b) }}{{ else }}{{ appr = appr | array.add b }}{{ end }}{{ end }}
+{{~ # A development item follows its owning building: the owner's IsAppraisable == false takes the item out of the table and into the note. ~}}
+{{ for it in grp.development_items }}{{ if it.is_appraisable == false }}{{ notes = notes | array.add (excl_dev_line it) }}{{ else }}{{ dev_appr = dev_appr | array.add it }}{{ end }}{{ end }}
+<div class="bk-h2"{{ if n3 > 1 }} style="page-break-before:always;"{{ end }}><span>3.{{ n3 }}</span><span>{{ if multi_grp && grp.group_number > 0 }}{{ glabel grp }} · {{ end }}อาคารสิ่งปลูกสร้าง</span></div>
+{{ if !bld_pic }}{{ bld_pic = true }}{{ pic = appx_img 'BUILDING_LAYOUT' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}{{ end }}
+{{ if appr.size > 0 || dev_appr.size > 0 }}
+<p class="bk-p">{{ if appr.size > 0 }}อาคารสิ่งปลูกสร้าง จำนวน {{ appr.size }} รายการ{{ if dev_appr.size > 0 }} และส่วนพัฒนาอื่นๆ บนที่ดิน{{ end }}{{ else }}ส่วนพัฒนาอื่นๆ บนที่ดิน{{ end }} ดังนี้</p>
+{{ has_lic = false }}{{ for b in appr }}{{ if b.license_number != null && (b.license_number | string.strip) != "" }}{{ has_lic = true }}{{ end }}{{ end }}
+<table class="vt">
+  {{~ # รายการสิ่งปลูกสร้าง stays the widest column; the owner column wraps long names instead of overflowing. ~}}
+  <thead><tr><th style="width:46px;">ลำดับ</th><th style="width:{{ has_lic ? 9 : 11 }}%;">บ้านเลขที่</th><th>รายการสิ่งปลูกสร้าง</th><th style="width:{{ has_lic ? 10 : 12 }}%;">พื้นที่ใช้สอย<br/>(ตร.ม.)</th><th style="width:{{ has_lic ? 11 : 13 }}%;">ตั้งอยู่บน<br/>โฉนดเลขที่</th>{{ if has_lic }}<th style="width:14%;">หนังสือแสดง<br/>กรรมสิทธิ์</th>{{ end }}<th style="width:{{ has_lic ? 15 : 20 }}%;">ผู้ถือกรรมสิทธิ์</th></tr></thead>
+  <tbody>
+    {{ tot_area = 0; row_k = bld_k }}
+    {{ for b in appr }}
+    {{ tot_area = tot_area + (b.usable_area ?? 0) }}{{ row_k = row_k + 1 }}
+    <tr>
+      <td class="c">{{ row_k }}</td>
+      <td>{{ nz b.house_number }}</td>
+      <td>{{ nz b.building_type_text }}{{ if b.number_of_floors }} {{ fx b.number_of_floors }} ชั้น{{ end }}{{ if b.under_construction_text }} {{ b.under_construction_text }}{{ end }}</td>
+      <td class="r">{{ nz (f2 b.usable_area) }}</td>
+      <td>{{ nz b.built_on_title_number }}</td>
+      {{ if has_lic }}<td>{{ if b.license_number != null && (b.license_number | string.strip) != "" }}ใบอนุญาตก่อสร้าง {{ b.license_number }}{{ if b.license_expiration }} (หมดอายุ {{ thai.date b.license_expiration }}){{ end }}{{ end }}</td>{{ end }}
+      <td style="overflow-wrap:anywhere;">{{ b.owner_text }}</td>
+    </tr>
+    {{ end }}
+    {{ if dev_appr.size > 0 }}
+    <tr class="sub"><td colspan="{{ has_lic ? 7 : 6 }}">ส่วนพัฒนาอื่นๆ บนที่ดิน</td></tr>
+    {{ for it in dev_appr }}{{ row_k = row_k + 1 }}
+    {{~ # Same title as the development page: the parent building's type, else the item description. The area (ตร.ม.) prints but never joins รวมสิ่งปลูกสร้าง ทรัพย์สินที่ประเมินมูลค่า. ~}}
+    {{ ttl = it.building_type_text ? (it.building_type_text | string.strip) : '' }}
+    <tr><td class="c">{{ row_k }}</td><td></td><td>{{ nz (ttl != '' ? ttl : it.area_description) }}</td><td class="r">{{ f2 it.area }}</td><td></td>{{ if has_lic }}<td></td>{{ end }}<td>-</td></tr>
+    {{ end }}
+    {{ end }}
+    <tr class="tot"><td colspan="3" class="r">รวมสิ่งปลูกสร้าง ทรัพย์สินที่ประเมินมูลค่า</td><td class="r">{{ f2 tot_area }}</td><td></td>{{ if has_lic }}<td></td>{{ end }}<td></td></tr>
+  </tbody>
+</table>
+{{ end }}
+{{ excl_note notes }}
+{{~ # Detail pages follow the table: appraised buildings numbered like the table rows, then the not-appraised ones unnumbered. ~}}
+{{ for b in (appr | array.add_range excl) }}
+{{ if b.is_appraisable != false }}{{ bld_k = bld_k + 1 }}{{ end }}
+{{ bld_in_summary_table = true }}{{ include 'partials/book-building-block' }}{{ bld_in_summary_table = false }}
+{{ end }}
+{{ end }}
+{{ dev_items = grp.development_items; dev_photos = grp.development_photos; include 'partials/book-development' }}
+{{ end }}
+{{ include 'partials/book-mixed-extras' }}
+</div>
+
+{{~ # ═══════════════ 4. กฎหมายและข้อกำหนดที่เกี่ยวข้อง — one 4.1-4.2 (or one 4.N per law record), a head per land where there are several ═══════════════ ~}}
+{{ part_kind = 'body'; part_id = 's4'; include 'partials/book-part' }}
+<div class="bk">
+<div class="bk-h1"><span>4.</span><span>กฎหมายและข้อกำหนดที่เกี่ยวข้อง</span></div>
+{{ if model.law_records.size > 0 }}
+{{ include 'partials/book-laws' }}
+{{ else }}
+<div class="bk-keep">
+<div class="bk-h2"><span>4.1</span><span>ข้อกำหนดผังเมือง</span></div>
+{{ pic = appx_img 'CITY_PLAN' 'STATUTORY_PLAN' }}{{ if pic && pic.img_src }}<div class="bk-img"><img alt="" src="{{ pic.img_src }}"/>{{ if pic.caption }}<div class="cap">{{ pic.caption }}</div>{{ end }}</div>{{ end }}
+{{ for ls in model.all_lands }}
+{{ if multi_land }}{{ lhead ls (for.index + 1) }}{{ end }}
+<div class="vk">
+  {{ vkm 'ผังเมืองรวม' }}
+  {{ vk 'เป็นพื้นที่สี' ls.urban_planning_color }}
+  {{ vk 'ที่ดินประเภท' ls.urban_planning_type }}
+</div>
+{{ end }}
+</div>
+<div class="bk-keep">
+<div class="bk-h2"><span>4.2</span><span>กฎหมายควบคุมอาคาร</span></div>
+<div class="vk">{{ vkm 'ข้อกำหนด' }}</div>
+</div>
+{{ end }}
+</div>
+
+{{ include 'partials/book-flow-tail' }}

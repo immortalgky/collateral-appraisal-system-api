@@ -1,0 +1,140 @@
+{{ if model.block_section }}
+{{ blk = model.block_section }}
+<!--
+  Partial: block (project) pages of the appraisal book — project land, project detail and, for house
+  projects, one building + cost page per model. Every value is a real column; a field the system does
+  not store prints a red "-" (class .na).
+-->
+<style>
+  .bk .kv .k { width:270px; white-space:normal; }
+  .bk .kv .v { white-space:pre-line; }
+</style>
+
+{{ if blk.land }}
+{{ land = blk.land }}
+<div style="page-break-before:always;" class="bk">
+  <div class="section-bar">รายละเอียดที่ดินโครงการ</div>
+  <div class="pad">
+    <div class="kv"><span class="k">เอกสารสิทธิ :</span><span class="v">{{ for t in land.titles }}{{ t }}{{ if !for.last }}
+{{ end }}{{ end }}</span></div>
+    <div class="kv"><span class="k">ตรวจสอบจาก :</span><span class="v">{{ land.check_method }}</span></div>
+    <div class="kv"><span class="k">ถนนผ่านหน้าโครงการ :</span><span class="v">{{ land.road_in_front }}</span></div>
+    <div class="kv"><span class="k">ถนนสายหลัก :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">สาธารณูปโภค :</span><span class="v">{{ land.public_utility }}</span></div>
+    <div class="kv"><span class="k">การคมนาคม :</span><span class="v">{{ land.transportation }}</span></div>
+    <div class="kv"><span class="k">ทรัพย์สินอยู่ในพื้นที่ :</span><span class="v">{{ land.land_zone }}</span></div>
+    <div class="kv"><span class="k">สภาพแวดล้อม :</span><span class="v">{{ land.environment }}</span></div>
+    <div class="kv"><span class="k">แนวโน้มความเจริญ :</span><span class="v">{{ land.anticipation }}</span></div>
+    <div class="kv"><span class="k">โครงการรัฐ / สถานที่มีผลต่อราคา / มลพิษ :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">ผังเมือง :</span><span class="v">{{ land.urban_planning }}</span></div>
+    <div class="kv"><span class="k">สีผังเมือง :</span><span class="v">{{ land.urban_planning_color ?? '-' }}</span></div>
+    <div class="kv"><span class="k">กฎหมายควบคุมอาคาร :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">แนวเวนคืน :</span><span class="v">{{ land.expropriation }}</span></div>
+    <div class="kv"><span class="k">การรอนสิทธิ :</span><span class="v">{{ land.eviction }}</span></div>
+  </div>
+</div>
+{{ end }}
+
+{{ pj = blk.project }}
+<div style="page-break-before:always;" class="bk">
+  <div class="section-bar">รายละเอียดโครงการทรัพย์สิน</div>
+  <div class="pad">
+    <div class="kv"><span class="k">ชื่อโครงการ :</span><span class="v">{{ pj.project_name }}</span></div>
+    <div class="kv"><span class="k">เจ้าของโครงการ :</span><span class="v">{{ pj.developer }}</span></div>
+    <div class="kv"><span class="k">ประสบการณ์ผู้พัฒนาโครงการ :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">เนื้อที่โครงการ :</span><span class="v">{{ pj.land_area_text }}</span></div>
+    <div class="kv"><span class="k">ความคืบหน้าการก่อสร้างโดยรวม :</span><span class="v">{{ if pj.construction_progress_percent != null }}{{ pj.construction_progress_percent | math.format "#,##0.##" }}%{{ end }}</span></div>
+    <div class="kv"><span class="k">ความคืบหน้าสาธารณูปโภคในโครงการ :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">บ้านตัวอย่าง :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">หน่วยขายทั้งหมด :</span><span class="v">{{ if pj.unit_for_sale_count != null }}{{ pj.unit_for_sale_count | math.format "#,##0" }} หน่วย{{ end }}</span></div>
+    <div class="kv"><span class="k">วันที่เปิดขายโครงการ :</span><span class="v">{{ pj.sale_launch_date }}</span></div>
+    <div class="kv"><span class="k">อัตราการเข้าอยู่อาศัย :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">หน่วยที่ประเมินครั้งนี้ :</span><span class="v">{{ pj.appraised_unit_count | math.format "#,##0" }} ยูนิต{{ if pj.appraised_unit_share_pct != null }} = {{ pj.appraised_unit_share_pct | math.format "#,##0.##" }}% ของหน่วยขาย{{ end }}</span></div>
+  </div>
+
+  {{ if blk.models.size > 0 }}
+  <div class="pad" style="padding-top:0;">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th style="width:36px;">ลำดับ</th>
+          <th>{{ if blk.is_condo }}แบบห้องชุด{{ else }}แบบบ้าน{{ end }}</th>
+          <th>นอน/น้ำ</th>
+          <th class="num" style="width:110px;">พื้นที่ใช้สอย (ตร.ม.)</th>
+          <th class="num" style="width:70px;">จำนวน</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ for m in blk.models }}
+        <tr>
+          <td class="ctr">{{ m.sequence }}</td>
+          <td>{{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</td>
+          <td>{{ m.room_layout }}</td>
+          <td class="num">{{ if m.standard_usable_area; m.standard_usable_area | math.format "N2"; end }}</td>
+          <td class="num">{{ m.unit_count }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ end }}
+</div>
+
+{{ if !blk.is_condo }}
+{{ for m in blk.models }}
+<div style="page-break-before:always;" class="bk">
+  <div class="section-bar">รายละเอียดสิ่งปลูกสร้าง — {{ m.model_name }}{{ if m.model_description }} ({{ m.model_description }}){{ end }}</div>
+  <div class="pad">
+    <div class="kv"><span class="k">ประเภทอาคาร / จำนวนชั้น :</span><span class="v">{{ m.building_type }}{{ if m.number_of_floors != null }} {{ m.number_of_floors | math.format "#,##0.##" }} ชั้น{{ end }}</span></div>
+    <div class="kv"><span class="k">สภาพ / อายุ :</span><span class="v">{{ if m.is_under_construction == true }}อยู่ระหว่างก่อสร้าง{{ else if m.is_under_construction == false }}ก่อสร้างเสร็จแล้ว{{ end }}{{ if m.building_age != null }} อายุ {{ m.building_age }} ปี{{ end }}</span></div>
+    <div class="kv"><span class="k">โครงสร้าง / โครงหลังคา / หลังคา :</span><span class="v">{{ m.structure }}{{ if m.roof_frame }} / {{ m.roof_frame }}{{ end }}{{ if m.roof }} / {{ m.roof }}{{ end }}</span></div>
+    <div class="kv"><span class="k">พื้น :</span><span class="v">{{ m.floor_material }}</span></div>
+    <div class="kv"><span class="k">พื้นห้องน้ำ :</span><span class="v">{{ m.bathroom_floor_material }}</span></div>
+    <div class="kv"><span class="k">ผนังภายใน / ภายนอก / ฝ้าเพดาน :</span><span class="v">{{ m.interior_wall }}{{ if m.exterior_wall }} / {{ m.exterior_wall }}{{ end }}{{ if m.ceiling }} / {{ m.ceiling }}{{ end }}</span></div>
+    <div class="kv"><span class="k">ประตู / หน้าต่าง :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">ห้องครัว / เครื่องปรับอากาศ :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">ห้องน้ำ / สุขภัณฑ์ :</span><span class="v"><span class="na">-</span></span></div>
+    <div class="kv"><span class="k">การแบ่งพื้นที่ใช้สอย :</span><span class="v">{{ m.room_layout }}</span></div>
+    <div class="kv"><span class="k">การตกแต่ง :</span><span class="v">{{ m.decoration }}</span></div>
+  </div>
+
+  {{ if m.costs.size > 0 || m.coverage_amount != null }}
+  <div class="section-bar" style="font-size:8pt;">การคำนวณราคาสิ่งปลูกสร้าง</div>
+  <div class="pad">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>รายละเอียด</th>
+          <th class="num" style="width:90px;">พื้นที่ (ตร.ม.)</th>
+          <th class="num" style="width:90px;">ราคา/ตร.ม.</th>
+          <th class="num" style="width:110px;">มูลค่า (บาท)</th>
+          <th class="num" style="width:80px;">ค่าเสื่อม (%)</th>
+          <th class="num" style="width:110px;">มูลค่าหลังหักค่าเสื่อม</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ for c in m.costs }}
+        <tr>
+          <td>{{ c.description }}</td>
+          <td class="num">{{ c.area | math.format "N2" }}</td>
+          <td class="num">{{ c.price_per_sqm | math.format "N2" }}</td>
+          <td class="num">{{ c.price_before_depreciation | math.format "N2" }}</td>
+          <td class="num">{{ c.total_depreciation_pct | math.format "N2" }}</td>
+          <td class="num">{{ c.price_after_depreciation | math.format "N2" }}</td>
+        </tr>
+        {{ end }}
+        {{ if m.coverage_amount != null }}
+        <tr style="font-weight:700;">
+          <td colspan="5">มูลค่าประกันภัย (ปัดเศษ)</td>
+          <td class="num">{{ m.coverage_amount | math.format "N2" }}</td>
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ end }}
+</div>
+{{ end }}
+{{ end }}
+
+{{ end }}

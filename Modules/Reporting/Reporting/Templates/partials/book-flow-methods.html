@@ -1,0 +1,98 @@
+{{~ # Partial: the pricing methods of ONE property group, one pass. The caller (book-flow-standard section 6) sets grp, ref_pass (false = the methods that fed the final value, true = reference ones), n6 and any6. ~}}
+{{~ # Each method keeps its existing table partial, wrapped in a numbered heading; the partial's own title bar and banner are hidden by .vm. ~}}
+{{- func is_ref(ctx); ret ctx != null && ctx.is_reference == true; end -}}
+{{- func vm_title(ctx, method)
+  if ctx != null && ctx.role_label; ret 'มูลค่า' + ctx.role_label + 'โดย' + method; end
+  ret 'การประเมินมูลค่าทรัพย์สินโดย' + method
+end -}}
+{{- cost_used = false -}}
+{{ if !ref_pass }}
+  {{ for av in model.approach_values }}{{ if av.group_number == grp.group_number && !av.is_reference }}
+    {{~ # One title line + one prose paragraph per used approach, built in C# (PricingNarrative.IntroTitle / IntroText) from the methods behind its value. ~}}
+    {{ if av.approach_type == 'Cost' }}{{ cost_used = true }}{{ end }}
+    <p class="bk-p"><b>{{ av.intro_title }}</b></p>
+    <p class="bk-p">{{ av.intro_text }}</p>
+  {{ end }}{{ end }}
+{{ end }}
+
+{{ for sec in model.wqs_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context 'วิธีเปรียบเทียบราคาตลาด (Weighted Quality Score)' }}</span></div>
+  <div class="vm">{{ w = sec }}{{ include 'partials/section-wqs' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.sale_grid_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context (sec.is_direct_comparison ? 'การเปรียบเทียบตรง (Direct Comparison)' : 'วิธีเปรียบเทียบตลาด (Sale Adjustment Grid)') }}</span></div>
+  <div class="vm">{{ sgr = sec }}{{ include 'partials/section-salegrid' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.income_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context (sec.is_direct_capitalization ? 'วิธีรายได้ (Income Approach – Direct Capitalization)' : 'วิธีรายได้ (Income Approach – Discounted Cash Flow)') }}</span></div>
+  <div class="vm">{{ inc = sec }}{{ include 'partials/section-income' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.profit_rent_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context 'วิธีค่าเช่า (Profit Rent Approach)' }}</span></div>
+  <div class="vm">{{ pr = sec }}{{ include 'partials/section-profitrent' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.leasehold_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context 'วิธีสิทธิการเช่า (Leasehold Approach)' }}</span></div>
+  <div class="vm">{{ lh = sec }}{{ include 'partials/section-leasehold' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.hypothesis_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context 'วิธีสมมติฐาน (Hypothesis Approach)' }}</span></div>
+  <div class="vm">{{ hyp = sec }}{{ include 'partials/section-hypothesis' }}</div>
+{{ end }}{{ end }}
+
+{{ for sec in model.cost_machine_sections }}{{ if sec.group_number == grp.group_number && (is_ref sec.context) == ref_pass }}
+  {{ n6 = n6 + 1; any6 = true }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>{{ vm_title sec.context 'วิธีต้นทุน (เครื่องจักร)' }}</span></div>
+  <div class="vm">{{ cms = sec }}{{ include 'partials/section-costmachine' }}</div>
+{{ end }}{{ end }}
+
+{{ has_cost_rows = false; cost_blds = []; cost_dev = []; cost_total = null; cost_computed = null; cost_override = null; cost_manual_remark = null }}
+{{ cost_x = []; cost_dev_x = [] }}{{ for b in grp.buildings }}{{ if b.cost_rows.size > 0 && (b.cost_is_reference == true) == ref_pass }}{{ if b.is_development_only }}{{ if b.is_appraisable == false }}{{ cost_dev_x = cost_dev_x | array.add b }}{{ else }}{{ cost_dev = cost_dev | array.add b }}{{ end }}{{ else if b.is_appraisable == false }}{{ cost_x = cost_x | array.add b }}{{ else }}{{ cost_blds = cost_blds | array.add b }}{{ end }}{{ end }}{{ end }}{{ cost_blds = cost_blds | array.add_range cost_x; cost_dev = cost_dev | array.add_range cost_dev_x }}
+{{ if cost_blds.size > 0 || cost_dev.size > 0 }}
+  {{ has_cost_rows = true; n6 = n6 + 1; any6 = true }}
+  {{ if !ref_pass }}{{ for gr in model.groups }}{{ if gr.group_number == grp.group_number }}{{ cost_total = gr.building_subtotal; cost_computed = gr.building_subtotal_computed; cost_override = gr.building_override_value; cost_manual_remark = gr.building_manual_remark }}{{ end }}{{ end }}{{ end }}
+  {{ if ref_pass }}<div class="bk-ref">(อ้างอิง) วิธีนี้ไม่ได้ใช้สรุปมูลค่า แสดงเพื่อประกอบการพิจารณา</div>{{ end }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>มูลค่าสิ่งปลูกสร้าง โดยวิธีต้นทุนทดแทนหักค่าเสื่อมราคา (Depreciated Replacement Cost)</span></div>
+  {{ cost_insurance = null }}{{ if !ref_pass && ins_group != null && grp.group_number == ins_group }}{{ cost_insurance = ins_amount; ins_printed = true }}{{ end }}
+  <div class="vm">{{ cost_show_remark = true }}{{ include 'partials/book-building-cost' }}{{ cost_show_remark = false }}</div>
+  {{ cost_insurance = null }}
+  {{ cost_computed = null; cost_override = null; cost_manual_remark = null }}
+{{ end }}
+
+{{~ # Cost approach used for this group: land + building -> the approach value, from the same figures the bank's summary prints. ~}}
+{{ if !ref_pass && cost_used && has_cost_rows }}
+  {{ for gr in model.groups }}{{ if gr.group_number == grp.group_number && (gr.land_subtotal != null || gr.building_subtotal != null) }}
+  {{ n6 = n6 + 1 }}
+  <div class="bk-h2{{ if multi6 }} sub{{ end }}"><span>{{ h6 }}{{ n6 }}</span><span>สรุปมูลค่าทรัพย์สินโดยวิธีต้นทุน (Cost Approach)</span></div>
+  <div class="bk-sum">
+    {{~ # Rows follow the bank sample: the appraised land area, the land value (rate x area), the buildings counted in the cost table, the land + building sum at current condition when the final figure is rounded away from it, then the property value by the cost approach. A land-only or building-only group simply drops the rows it does not have. ~}}
+    {{ bld_used = gr.building_override_value ?? gr.building_subtotal }}
+    {{ if gr.land_area_text }}<div><span>เนื้อที่ดินที่ประเมินมูลค่า {{ gr.land_area_text }}</span><span></span><span></span><span></span></div>{{ end }}
+    {{ if gr.land_subtotal != null }}<div><span>{{ if gr.land_value_overridden }}มูลค่าที่ดิน (ผู้ประเมินกำหนด){{ else if gr.land_unit_price }}ตารางวาละ {{ f2 gr.land_unit_price }} บาท{{ if gr.land_value != null && gr.land_value != gr.land_subtotal }} = {{ f0 gr.land_value }} (ปัดเศษ){{ end }}{{ else }}มูลค่าที่ดิน{{ end }}</span><span>เป็นเงิน</span><span>{{ f0 gr.land_subtotal }}</span><span>บาท</span></div>{{ end }}
+    {{~ # The buildings the cost table counts: appraised, not development-only (the not-appraised ones are out of the total). A development-only property with cost rows adds the improvements wording. A summary prints the building value actually used: the appraiser's when set, else the rounded computed one. ~}}
+    {{ n_bld = 0; has_dev = false }}{{ for b in cost_blds }}{{ if b.is_appraisable != false }}{{ n_bld = n_bld + 1 }}{{ end }}{{ end }}{{ for b in cost_dev }}{{ if b.is_appraisable != false }}{{ has_dev = true }}{{ end }}{{ end }}
+    {{ if bld_used != null }}<div><span>สิ่งปลูกสร้าง จำนวน {{ n_bld }} รายการ{{ if has_dev }} และส่วนปรับปรุงพัฒนาอื่นๆ{{ end }}{{ if gr.building_override_value == null }} (ปัดเศษ){{ end }}</span><span>เป็นเงิน</span><span>{{ f0 bld_used }}</span><span>บาท</span></div>{{ end }}
+    {{ show_sum = gr.land_subtotal != null && bld_used != null && gr.group_total != null && (gr.land_subtotal + bld_used) != gr.group_total }}
+    {{ if show_sum }}<div class="g"><span>รวมมูลค่าที่ดิน พร้อมสิ่งปลูกสร้าง ตามสภาพปัจจุบัน</span><span>เป็นเงิน</span><span>{{ f0 (gr.land_subtotal + bld_used) }}</span><span>บาท</span></div>{{ end }}
+    {{ if gr.group_total != null }}<div class="b"><span>รวมมูลค่าทรัพย์สิน โดยวิธีต้นทุน ตามสภาพปัจจุบัน{{ if show_sum }} (ปัดเศษ){{ end }}</span><span>เป็นเงิน</span><span>{{ f0 gr.group_total }}</span><span>บาท</span></div>{{ end }}
+  </div>
+  {{ end }}{{ end }}
+{{ end }}

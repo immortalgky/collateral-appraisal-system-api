@@ -61,8 +61,8 @@ internal static class CondoSectionLoader
         //
         // QCond1 (RS02) — all CondoAppraisalDetails rows for the appraisal.
         //   Ordered by ap.SequenceNumber.
-        //   Deferred (no source): WallMaterialType, CeilingMaterialType,
-        //   DoorMaterialType, WindowMaterialType, RoadZoneWidth/RoadFrontage.
+        //   No source (the template prints a red "-"): wall, ceiling, door, window, sanitary
+        //   ware, ownership ratio, common fee, road-zone width, urban-planning colour.
         //
         // QCond2 (RS03) — all CondoAppraisalAreaDetails rows for the appraisal.
         //   FK column: "CondoAppraisalDetailsId"
@@ -86,14 +86,28 @@ internal static class CondoSectionLoader
                   'BathroomFlooringMaterials',
                   'Landfill',
                   'TypeOfUrbanPlanning',
+                  'UrbanPlanningColor',
                   'LandEntranceExit',
-                  'LandUse'
+                  'LandUse',
+                  'UpperFlooringMaterials',
+                  'Decoration',
+                  'RoomLayout',
+                  'LocationView',
+                  'Facilities',
+                  'Environment',
+                  'Pollution',
+                  'Transportation',
+                  'LandOffice',
+                  'BuildingCondition',
+                  'Obligation'
               );
 
             -- RS02: QCond1 — condo detail rows (all properties, ordered by sequence)
             SELECT
                 cad.Id,
                 ap.SequenceNumber,
+                pgn.GroupNumber,
+                pgn.SequenceInGroup,
                 cad.RoomNumber,
                 cad.FloorNumber,
                 cad.NumberOfFloors,
@@ -106,10 +120,11 @@ internal static class CondoSectionLoader
                 cad.OwnerName,
                 cad.ObligationDetails,
                 cad.LocationType,
+                cad.LocationRemark,
                 cad.Street                   AS Road,
                 cad.Soi,
                 cad.DistanceFromMainRoad,
-                cad.AccessRoadWidth,
+                cad.CarriagewayWidth,
                 cad.RoadSurfaceType,
                 cad.RoadSurfaceTypeOther,
                 cad.PublicUtilityType,
@@ -127,18 +142,67 @@ internal static class CondoSectionLoader
                 cad.RoofTypeOther,
                 cad.BuildingAge,
                 cad.IsInExpropriationLine,
+                cad.ExpropriationLineRemark,
+                cad.RoyalDecree,
+                cad.OtherLegalLimitations,
+                cad.ForestBoundaryRemark,
+                cad.LandOffice,
+                cad.DocumentValidationResultType,
+                cad.IsOwnerVerified,
+                cad.BuildingConditionType,
+                cad.BuildingConditionTypeOther,
+                cad.ObligationType,
+                cad.MortgageDetails,
+                cad.IsRentedOut,
+                cad.RightOfWayWidth,
+                cad.NumberOfLanes,
+                cad.ConstructionYear,
+                cad.Latitude,
+                cad.Longitude,
                 cad.Remark,
                 cad.LandFillType,
                 cad.LandFillTypeOther,
                 cad.UrbanPlanningType,
+                cad.UrbanPlanningColor,
+                cad.UrbanPlanningColorOther,
                 cad.LandEntranceExitType,
                 cad.LandEntranceExitTypeOther,
                 cad.LandUseType,
                 cad.LandUseTypeOther,
+                cad.UpperFloorMaterialType,
+                cad.UpperFloorMaterialTypeOther,
+                cad.DecorationType,
+                cad.DecorationTypeOther,
+                cad.RoomLayoutType,
+                cad.RoomLayoutTypeOther,
+                cad.LocationViewType,
+                cad.LocationViewTypeOther,
+                cad.FacilityType,
+                cad.FacilityTypeOther,
+                cad.EnvironmentType,
+                cad.EnvironmentTypeOther,
+                cad.IsForestBoundary,
+                cad.HasFloodProblem,
+                cad.FloodProblemRemark,
+                cad.HasPollutionProblem,
+                cad.PollutionType,
+                cad.PollutionTypeOther,
+                cad.PollutionProblemRemark,
+                cad.HasOtherEnvironmentProblem,
+                cad.OtherEnvironmentProblemRemark,
+                cad.RoadPassInFrontOfLand,
+                cad.TransportationAccessType,
+                cad.TransportationAccessTypeOther,
                 cad.GovernmentPricePerSqm,
                 cad.GovernmentPrice
             FROM appraisal.CondoAppraisalDetails cad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = cad.AppraisalPropertyId
+            -- the group the unit sits in (OUTER APPLY, so a unit listed twice can never repeat its row)
+            OUTER APPLY (SELECT TOP 1 pg.GroupNumber, pgi.SequenceInGroup
+                         FROM appraisal.PropertyGroupItems pgi
+                         JOIN appraisal.PropertyGroups pg ON pg.Id = pgi.PropertyGroupId
+                         WHERE pgi.AppraisalPropertyId = ap.Id
+                         ORDER BY pg.GroupNumber, pgi.SequenceInGroup) pgn
             LEFT JOIN parameter.TitleProvinces    tprov ON tprov.Code = cad.Province
             LEFT JOIN parameter.TitleDistricts    tdist ON tdist.Code = cad.District
             LEFT JOIN parameter.TitleSubDistricts tsub  ON tsub.Code  = cad.SubDistrict
@@ -173,7 +237,8 @@ internal static class CondoSectionLoader
                 m.ValuePerUnit,
                 m.MethodValue,
                 -- IndicatedValue (the appraiser's typed-over figure) outranks FinalValue, as in Q9.
-                COALESCE(pa.FinalAppraisedValue, m.IndicatedValue, m.FinalValue) AS GroupValue
+                COALESCE(pa.FinalAppraisedValue, m.IndicatedValue, m.FinalValue) AS GroupValue,
+                pa.Remark AS PricingRemark
             FROM appraisal.PropertyGroups pg
             JOIN appraisal.PropertyGroupItems pgi
                 ON pgi.PropertyGroupId = pg.Id
@@ -262,6 +327,10 @@ internal static class CondoSectionLoader
                 Sequence     = seq,
                 RoomNumber   = d.RoomNumber,
                 FloorNumber  = d.FloorNumber,
+                OwnerName       = d.OwnerName,
+                IsOwnerVerified = d.IsOwnerVerified,
+                ObligationMortgage = ObligationText.Mortgage(d.ObligationType, d.MortgageDetails),
+                ObligationOthers   = ObligationText.Others(d.ObligationType, d.ObligationDetails, paramMap.GetValueOrDefault(ObligationText.ParameterGroup) ?? []),
                 InteriorArea = areas.Count > 0 && interior > 0 ? interior : null,
                 BalconyArea  = areas.Count > 0 && balcony  > 0 ? balcony  : null,
                 AirConArea   = areas.Count > 0 && airCon   > 0 ? airCon   : null,
@@ -292,11 +361,24 @@ internal static class CondoSectionLoader
             first.RoofType, first.RoofTypeOther, paramMap, "Roof");
 
         // Code → display translations for scalar code columns
-        string? floorMaterial = TranslateWithOther(
-            first.GroundFloorMaterialType, first.GroundFloorMaterialTypeOther, paramMap, "GroundFlooringMaterials");
+        // วัสดุพื้น: the unit's own floor (ground, and upper when it has a different one).
+        var floorMaterial = string.Join(" / ", new[]
+            {
+                TranslateWithOther(first.GroundFloorMaterialType, first.GroundFloorMaterialTypeOther, paramMap, "GroundFlooringMaterials"),
+                TranslateWithOther(first.UpperFloorMaterialType, first.UpperFloorMaterialTypeOther, paramMap, "UpperFlooringMaterials")
+            }
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Distinct());
+        if (floorMaterial.Length == 0) floorMaterial = null;
 
-        string? sanitary = TranslateWithOther(
+        string? bathroomFloorMaterial = TranslateWithOther(
             first.BathroomFloorMaterialType, first.BathroomFloorMaterialTypeOther, paramMap, "BathroomFlooringMaterials");
+
+        string? decoration = TranslateWithOther(first.DecorationType, first.DecorationTypeOther, paramMap, "Decoration");
+        string? roomLayout = TranslateWithOther(first.RoomLayoutType, first.RoomLayoutTypeOther, paramMap, "RoomLayout");
+        string? locationView = DecodeJsonArrayWithTranslation(first.LocationViewType, first.LocationViewTypeOther, paramMap, "LocationView");
+        string? facilities = DecodeJsonArrayWithTranslation(first.FacilityType, first.FacilityTypeOther, paramMap, "Facilities");
+        string? environment = DecodeJsonArrayWithTranslation(first.EnvironmentType, first.EnvironmentTypeOther, paramMap, "Environment");
 
         string? buildingForm = TranslateCode(first.BuildingFormType, paramMap, "BuildingForm");
 
@@ -305,8 +387,7 @@ internal static class CondoSectionLoader
         string? roadSurfaceType = TranslateWithOther(
             first.RoadSurfaceType, first.RoadSurfaceTypeOther, paramMap, "RoadSurface");
 
-        // เป็นพื้นที่สี (urban-planning colour zone). Its paired ที่ดินประเภท cell has no
-        // condo-side source — see the LandType assignment below.
+        // ที่ดินประเภท = the urban-planning type; the colour zone (เป็นพื้นที่สี) is UrbanPlanningColor.
         string? urbanPlanningDisplay = TranslateCode(first.UrbanPlanningType, paramMap, "TypeOfUrbanPlanning");
 
         // สิทธิทางเข้า-ออก / สภาพการใช้ประโยชน์ — JSON-serialised List<string> of codes
@@ -316,8 +397,8 @@ internal static class CondoSectionLoader
             first.LandUseType, first.LandUseTypeOther, paramMap, "LandUse");
 
         // ── Valuation table (รายละเอียดการประเมินมูลค่าทรัพย์สิน ห้องชุด) ──────────────
-        // Part A area components = sums across all units; the registration rate/amount
-        // come from the first condo detail's GovernmentPricePerSqm / GovernmentPrice.
+        // Part A area components = sums across all units; the registration rate comes from
+        // the first condo detail's GovernmentPricePerSqm.
         decimal interiorTotal = units.Sum(u => u.InteriorArea ?? 0m);
         decimal balconyTotal  = units.Sum(u => u.BalconyArea ?? 0m);
         decimal airConTotal   = units.Sum(u => u.AirConArea ?? 0m);
@@ -358,18 +439,36 @@ internal static class CondoSectionLoader
                 : marketValue;
         }
 
+        // ราคาประเมินทุนทรัพย์ per area = the rate x that area; the stored GovernmentPrice (rate x
+        // usable area, locked on the property form) is the total, summed over the listed units.
+        decimal? rate = first.GovernmentPricePerSqm;
+        decimal? AreaAmount(decimal total) =>
+            rate.HasValue && total > 0 ? Math.Round(rate.Value * total, 2, MidpointRounding.AwayFromZero) : null;
+        decimal? registrationTotal = detailRows.Any(d => d.GovernmentPrice.HasValue)
+            ? detailRows.Sum(d => d.GovernmentPrice ?? 0m)
+            : null;
+
         var valuation = new CondoValuationDetail
         {
             InteriorArea      = interiorTotal > 0 ? interiorTotal : null,
             BalconyArea       = balconyTotal  > 0 ? balconyTotal  : null,
             AirConArea        = airConTotal   > 0 ? airConTotal   : null,
             OtherArea         = otherTotal    > 0 ? otherTotal    : null,
-            RegistrationPricePerSqm = first.GovernmentPricePerSqm,
-            RegistrationAmount      = first.GovernmentPrice,
+            RegistrationPricePerSqm = rate,
+            RegistrationAmount      = registrationTotal,
+            InteriorAmount          = AreaAmount(interiorTotal),
+            BalconyAmount           = AreaAmount(balconyTotal),
+            AirConAmount            = AreaAmount(airConTotal),
+            OtherAmount             = AreaAmount(otherTotal),
             MarketArea        = marketArea    > 0 ? marketArea    : null,
             MarketPricePerSqm = marketPricePerSqm,
             MarketAmount      = marketAmount,
-            TotalRoundedValue = marketValue   > 0 ? marketValue   : null
+            TotalRoundedValue = marketValue   > 0 ? marketValue   : null,
+            // หมายเหตุ of the valuation box = the group's PricingAnalysis.Remark (several groups: one per line)
+            Remark            = string.Join("\n", pricingRows
+                .Select(p => p.PricingRemark?.Trim())
+                .Where(r => !string.IsNullOrEmpty(r))
+                .Distinct()) is { Length: > 0 } pricingRemark ? pricingRemark : null
         };
 
         return new CondoSection
@@ -387,22 +486,51 @@ internal static class CondoSectionLoader
             Soi                   = first.Soi,
             DistanceText          = distanceText,
             OwnerName             = first.OwnerName,
-            Obligation            = first.ObligationDetails,
-            // ตำแหน่งหลักประกัน: LocationType "1" = ถูกต้อง (correct), "2" = ไม่ถูกต้อง; else unset
+            IsRentedOut           = first.IsRentedOut,
+            ObligationMortgage    = ObligationText.Mortgage(first.ObligationType, first.MortgageDetails),
+            ObligationOthers      = ObligationText.Others(first.ObligationType, first.ObligationDetails,
+                                        paramMap.GetValueOrDefault(ObligationText.ParameterGroup) ?? []),
+            LandOffice            = TranslateCode(first.LandOffice, paramMap, "LandOffice"),
+            DocumentValidationResult = DocumentCheck.Result(first.DocumentValidationResultType),
+            UsableArea            = detailRows.Any(d => d.UsableArea.HasValue) ? detailRows.Sum(d => d.UsableArea ?? 0m) : null,
+            GroupFigures          = detailRows.Where(d => d.GroupNumber.HasValue).GroupBy(d => d.GroupNumber!.Value)
+                .ToDictionary(g => g.Key, g => GroupFiguresOf(g.OrderBy(d => d.SequenceInGroup ?? int.MaxValue).ThenBy(d => d.SequenceNumber).ToList(), paramMap)),
+            IsOwnerVerified       = first.IsOwnerVerified,
+            BuildingCondition     = TranslateWithOther(first.BuildingConditionType, first.BuildingConditionTypeOther, paramMap, "BuildingCondition"),
+            NumberOfLanes             = first.NumberOfLanes,
+            RightOfWayWidth            = first.RightOfWayWidth,
+            ConstructionYear      = first.ConstructionYear,
+            Latitude              = first.Latitude,
+            Longitude             = first.Longitude,
+            ExpropriationRemark   = AppraisalSummaryCommonLoader.FirstNonBlank(first.ExpropriationLineRemark),
+            RoyalDecree           = AppraisalSummaryCommonLoader.FirstNonBlank(first.RoyalDecree),
+            OtherLegalLimitations = AppraisalSummaryCommonLoader.FirstNonBlank(first.OtherLegalLimitations),
+            ForestBoundaryRemark  = AppraisalSummaryCommonLoader.FirstNonBlank(first.ForestBoundaryRemark),
+            HasFloodProblem       = first.HasFloodProblem,
+            FloodProblemRemark    = AppraisalSummaryCommonLoader.FirstNonBlank(first.FloodProblemRemark),
+            HasPollutionProblem   = first.HasPollutionProblem,
+            PollutionType         = DecodeJsonArrayWithTranslation(first.PollutionType, first.PollutionTypeOther, paramMap, "Pollution", " / "),
+            PollutionProblemRemark = AppraisalSummaryCommonLoader.FirstNonBlank(first.PollutionProblemRemark),
+            HasOtherEnvironmentProblem = first.HasOtherEnvironmentProblem,
+            OtherEnvironmentProblemRemark = AppraisalSummaryCommonLoader.FirstNonBlank(first.OtherEnvironmentProblemRemark),
+            RoadPassInFrontOfLand = AppraisalSummaryCommonLoader.FirstNonBlank(first.RoadPassInFrontOfLand),
+            TransportationAccessType = DecodeJsonArrayWithTranslation(first.TransportationAccessType, first.TransportationAccessTypeOther, paramMap, "Transportation"),
+            // ตำแหน่งห้องชุด: LocationType "1" = ถูกต้อง (correct), "2" = ไม่ถูกต้อง; else unset
             PositionCorrect       = first.LocationType switch
             {
                 "1" => true,
                 "2" => false,
                 _   => null
             },
+            PositionRemark        = AppraisalSummaryCommonLoader.FirstNonBlank(first.LocationRemark),
             FloorMaterial         = floorMaterial,
-            Wall                  = null,           // no source
-            Ceiling               = null,           // no source
-            Door                  = null,           // no source
-            Window                = null,           // no source
-            Sanitary              = sanitary,
-            RoadSurfaceWidth      = first.AccessRoadWidth,
-            RoadZoneWidth         = null,           // no source
+            BathroomFloorMaterial = bathroomFloorMaterial,
+            Decoration            = decoration,
+            RoomLayout            = roomLayout,
+            LocationView          = locationView,
+            Facilities            = facilities,
+            Environment           = environment,
+            CarriagewayWidth      = first.CarriagewayWidth,
             RoadSurfaceType       = roadSurfaceType,
             PublicUtility         = publicUtility,
             BuildingAge           = first.BuildingAge,
@@ -411,11 +539,9 @@ internal static class CondoSectionLoader
             ConstructionMaterial  = constructionMaterial,
             RoofType              = roofType,
             IsInExpropriationLine = first.IsInExpropriationLine,
-            AreaColour            = urbanPlanningDisplay,
-            // ที่ดินประเภท — intentionally unset. It pairs with เป็นพื้นที่สี as a city-planning
-            // zone designation; none of the condo columns is that. LandFillType (การถมที่) is
-            // soil fill, not a zone type, so it is deliberately NOT used here.
-            LandType              = null,
+            IsForestBoundary      = first.IsForestBoundary,
+            LandType              = urbanPlanningDisplay,
+            UrbanPlanningColor    = TranslateWithOther(first.UrbanPlanningColor, first.UrbanPlanningColorOther, paramMap, "UrbanPlanningColor"),
             EntryExitRights       = entryExitRights,
             Utilization           = utilization,
             Remark                = first.Remark,
@@ -506,7 +632,7 @@ internal static class CondoSectionLoader
     /// </summary>
     private static string? DecodeJsonArrayWithTranslation(
         string? json, string? other,
-        Dictionary<string, Dictionary<string, string?>> paramMap, string group)
+        Dictionary<string, Dictionary<string, string?>> paramMap, string group, string separator = ", ")
     {
         if (string.IsNullOrWhiteSpace(json))
             return string.IsNullOrWhiteSpace(other) ? null : other;
@@ -526,7 +652,7 @@ internal static class CondoSectionLoader
         if (codes is null or { Count: 0 })
             return trimmedOther;
 
-        var present = codes.Where(c => !string.IsNullOrWhiteSpace(c)).ToList();
+        var present = AppraisalSummaryCommonLoader.OrderCodes(codes.Where(c => !string.IsNullOrWhiteSpace(c)));
         var hasOtherCode = present.Any(c => c == OtherCode);
         var labels = present
             // Code 99 = "other": show the remark instead of the "อื่นๆ" description.
@@ -536,15 +662,30 @@ internal static class CondoSectionLoader
         if (trimmedOther != null && !hasOtherCode)
             labels.Add(trimmedOther);
 
-        return labels.Count > 0 ? string.Join(", ", labels) : null;
+        return labels.Count > 0 ? string.Join(separator, labels) : null;
     }
 
     // ── Private Dapper flat DTOs ──────────────────────────────────────────────────
+
+    /// <summary>One group's figures: its units' usable area summed, and the name / condition / facilities of its first unit (rows come in the group's own order, SequenceInGroup).</summary>
+    private static CondoGroupFigures GroupFiguresOf(IReadOnlyList<CondoDetailRow> units, Dictionary<string, Dictionary<string, string?>> paramMap)
+    {
+        var first = units[0];
+        return new CondoGroupFigures
+        {
+            UsableArea = units.Any(d => d.UsableArea.HasValue) ? units.Sum(d => d.UsableArea ?? 0m) : null,
+            CondoName = first.CondoName,
+            BuildingCondition = TranslateWithOther(first.BuildingConditionType, first.BuildingConditionTypeOther, paramMap, "BuildingCondition"),
+            Facilities = DecodeJsonArrayWithTranslation(first.FacilityType, first.FacilityTypeOther, paramMap, "Facilities")
+        };
+    }
 
     private sealed class CondoDetailRow
     {
         public Guid    Id                           { get; init; }
         public int     SequenceNumber               { get; init; }
+        public int?    GroupNumber                  { get; init; }
+        public int?    SequenceInGroup              { get; init; }
         public string? RoomNumber                   { get; init; }
         public string? FloorNumber                  { get; init; }
         public decimal? NumberOfFloors              { get; init; }
@@ -556,10 +697,11 @@ internal static class CondoSectionLoader
         public string? OwnerName                    { get; init; }
         public string? ObligationDetails            { get; init; }
         public string? LocationType                 { get; init; }
+        public string? LocationRemark               { get; init; }
         public string? Road                         { get; init; }
         public string? Soi                          { get; init; }
         public decimal? DistanceFromMainRoad        { get; init; }
-        public decimal? AccessRoadWidth             { get; init; }
+        public decimal? CarriagewayWidth            { get; init; }
         public string? RoadSurfaceType              { get; init; }
         public string? RoadSurfaceTypeOther         { get; init; }
         public string? PublicUtilityType            { get; init; }
@@ -581,10 +723,53 @@ internal static class CondoSectionLoader
         public string? LandFillType                  { get; init; }
         public string? LandFillTypeOther              { get; init; }
         public string? UrbanPlanningType              { get; init; }
+        public string? UrbanPlanningColor             { get; init; }
+        public string? UrbanPlanningColorOther        { get; init; }
         public string? LandEntranceExitType           { get; init; }
         public string? LandEntranceExitTypeOther      { get; init; }
         public string? LandUseType                    { get; init; }
         public string? LandUseTypeOther               { get; init; }
+        public string? UpperFloorMaterialType         { get; init; }
+        public string? UpperFloorMaterialTypeOther    { get; init; }
+        public string? DecorationType                 { get; init; }
+        public string? DecorationTypeOther            { get; init; }
+        public string? RoomLayoutType                 { get; init; }
+        public string? RoomLayoutTypeOther            { get; init; }
+        public string? LocationViewType               { get; init; }
+        public string? LocationViewTypeOther          { get; init; }
+        public string? FacilityType                   { get; init; }
+        public string? FacilityTypeOther              { get; init; }
+        public string? EnvironmentType                { get; init; }
+        public string? EnvironmentTypeOther           { get; init; }
+        public bool?   IsForestBoundary               { get; init; }
+        public string? ExpropriationLineRemark        { get; init; }
+        public string? RoyalDecree                    { get; init; }
+        public string? OtherLegalLimitations          { get; init; }
+        public string? ForestBoundaryRemark           { get; init; }
+        public bool?   HasFloodProblem                { get; init; }
+        public string? FloodProblemRemark             { get; init; }
+        public bool?   HasPollutionProblem            { get; init; }
+        public string? PollutionType                  { get; init; }
+        public string? PollutionTypeOther             { get; init; }
+        public string? PollutionProblemRemark         { get; init; }
+        public bool?   HasOtherEnvironmentProblem     { get; init; }
+        public string? OtherEnvironmentProblemRemark  { get; init; }
+        public string? RoadPassInFrontOfLand          { get; init; }
+        public string? TransportationAccessType       { get; init; }
+        public string? TransportationAccessTypeOther  { get; init; }
+        public string? LandOffice                     { get; init; }
+        public string? DocumentValidationResultType   { get; init; }
+        public bool?   IsOwnerVerified                { get; init; }
+        public string? BuildingConditionType          { get; init; }
+        public string? BuildingConditionTypeOther     { get; init; }
+        public string? ObligationType                 { get; init; }
+        public string? MortgageDetails                { get; init; }
+        public bool?   IsRentedOut                    { get; init; }
+        public decimal? RightOfWayWidth                    { get; init; }
+        public short?  NumberOfLanes                      { get; init; }
+        public int?    ConstructionYear               { get; init; }
+        public decimal? Latitude                      { get; init; }
+        public decimal? Longitude                     { get; init; }
         public decimal? GovernmentPricePerSqm         { get; init; }
         public decimal? GovernmentPrice               { get; init; }
     }
@@ -610,5 +795,6 @@ internal static class CondoSectionLoader
         public decimal? ValuePerUnit { get; init; }
         public decimal? MethodValue  { get; init; }
         public decimal? GroupValue   { get; init; }
+        public string?  PricingRemark { get; init; }
     }
 }

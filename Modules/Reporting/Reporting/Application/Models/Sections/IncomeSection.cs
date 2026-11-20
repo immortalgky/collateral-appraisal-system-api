@@ -4,7 +4,8 @@ namespace Reporting.Application.Models.Sections;
 /// Sub-model for the "วิธีรายได้ (DCF)" Income / Discounted Cash Flow pricing section.
 ///
 /// Source: appraisal.IncomeAnalyses (FK: PricingAnalysisMethodId).
-/// JSON summary arrays are deserialized and zipped by year index into <see cref="YearRows"/>.
+/// Sections → categories → assumptions (appraisal.IncomeSections/Categories/Assumptions) and the
+/// Summary_*Json arrays are laid out as a line-item cash-flow table in <see cref="CashFlowBlocks"/>.
 /// Confirmed against IncomeAnalysisConfiguration.cs:
 ///   Table = "IncomeAnalyses" (schema appraisal)
 ///   FK column: PricingAnalysisMethodId (unique index)
@@ -27,6 +28,9 @@ public sealed class IncomeSection
     /// <summary>PropertyGroups.GroupName, or null when not set.</summary>
     public string? GroupName { get; init; }
 
+    /// <summary>Which approach / role this page belongs to and whether it is a reference (printed in the page banner).</summary>
+    public PricingMethodContext? Context { get; init; }
+
     // ── Key parameters ────────────────────────────────────────────────────────────
 
     /// <summary>ระยะเวลาประเมิน (ปี) — source: IncomeAnalyses.TotalNumberOfYears.</summary>
@@ -38,13 +42,59 @@ public sealed class IncomeSection
     /// <summary>อัตราคิดลด (Discount Rate) — source: IncomeAnalyses.DiscountedRate (%).</summary>
     public decimal? DiscountedRate { get; init; }
 
-    // ── Year-indexed cashflow table ────────────────────────────────────────────────
+    /// <summary>IncomeAnalyses.TemplateName — the template snapshot the analysis was built from (e.g. "DCF - Hotel").</summary>
+    public string? TemplateName { get; init; }
+
+    /// <summary>IncomeAnalyses.TotalNumberOfDayInYear.</summary>
+    public int DaysInYear { get; init; }
 
     /// <summary>
-    /// One row per year. Built by deserializing the five Summary_*Json arrays and zipping
-    /// by year index (0 = year 1, up to TotalNumberOfYears entries).
+    /// Direct Capitalization instead of DCF. Same rule as IncomeCalculationService.ComputeDcfSummary
+    /// (a summaryDirect section or a 1-year analysis), plus a "direct-*" template code.
+    /// Direct: one year, value = NOI ÷ Cap Rate, no discount rate.
     /// </summary>
-    public IReadOnlyList<IncomeYearRow> YearRows { get; init; } = [];
+    public bool IsDirectCapitalization { get; init; }
+
+    // ── Line-item cash-flow table ───────────────────────────────────────────────────
+
+    /// <summary>The cash-flow table split into blocks of at most 6 years (label column repeats per block).</summary>
+    public IReadOnlyList<IncomeCashFlowBlock> CashFlowBlocks { get; init; } = [];
+
+    /// <summary>Net income of the last year (Summary_GrossRevenueJson[N-1]) — the base of the terminal value (DCF only).</summary>
+    public decimal? TerminalBaseNoi { get; init; }
+
+    /// <summary>Summary_TerminalRevenueJson[N-2] — the terminal value, discounted in year N-1 (DCF only).</summary>
+    public decimal? TerminalValue { get; init; }
+
+    /// <summary>Direct: Summary_TotalNetJson[0] (the NOI) — DCF: null.</summary>
+    public decimal? DirectNoi { get; init; }
+
+    /// <summary>Σ Summary_PresentValueJson — the screen's "มูลค่าจากรายได้ (ผลรวม PV)". Direct: the single NOI ÷ Cap Rate value.</summary>
+    public decimal? PresentValueTotal { get; init; }
+
+    /// <summary>One row per assumption, in table order: name / method / one-line summary of its inputs.</summary>
+    public IReadOnlyList<IncomeAssumptionLine> Assumptions { get; init; } = [];
+
+    /// <summary>Land-value (SubjectType 3) and room-rate (SubjectType 5) sub-analyses hosted by this method — partials/book-sub-analyses.</summary>
+    public IReadOnlyList<PricingSubAnalysis> SubAnalyses { get; init; } = [];
+
+    /// <summary>HBU area via ThaiLandAreaFormatter.FormatTotal ("1 - 0 - 0 ไร่ หรือ 400 ตารางวา"); null when rai, ngan and wa are all empty.</summary>
+    public string? HbuAreaText { get; init; }
+
+    /// <summary>HBU land value = (Rai×400 + Ngan×100 + Wa) × price per sq.wa; null when the HBU block does not apply.</summary>
+    public decimal? HbuLandValue { get; init; }
+
+    /// <summary>
+    /// รวม — income value (Sum of PV) + the split-off land value, as the screen's HBU = No "= Total" row. Null unless HBU is
+    /// "No" with a land value and a Sum of PV. Independent of any figure the appraiser typed.
+    /// </summary>
+    public decimal? HbuTotalValue { get; init; }
+
+    /// <summary>
+    /// The appraiser typed the value (IndicatedValue) and it is not the system figure rounded to the thousand — the screen's
+    /// "Edited" test. The system figure is the final value rounded (HBU) or floor(adjusted value + split land) (HBU = No).
+    /// </summary>
+    public bool IsValueEdited { get; init; }
 
     // ── HBU top-up block ──────────────────────────────────────────────────────────
 
@@ -101,24 +151,37 @@ public sealed class IncomeSection
     public decimal? EffectiveFinalValue { get; init; }
 }
 
-/// <summary>One year row in the Income DCF cashflow table.</summary>
-public sealed class IncomeYearRow
+/// <summary>A block of up to 6 year columns of the cash-flow table.</summary>
+public sealed class IncomeCashFlowBlock
 {
-    /// <summary>ปีที่ — 1-based year index.</summary>
-    public int YearIndex { get; init; }
+    /// <summary>1-based year numbers of the columns in this block.</summary>
+    public IReadOnlyList<int> Years { get; init; } = [];
 
-    /// <summary>รายได้รวม — source: element[YearIndex-1] of Summary_GrossRevenueJson.</summary>
-    public decimal? GrossRevenue { get; init; }
+    public IReadOnlyList<IncomeCashFlowRow> Rows { get; init; } = [];
+}
 
-    /// <summary>รายได้จากมูลค่าซากสุดท้าย — source: Summary_TerminalRevenueJson.</summary>
-    public decimal? TerminalRevenue { get; init; }
+/// <summary>One row of the cash-flow table.</summary>
+public sealed class IncomeCashFlowRow
+{
+    public string Label { get; init; } = "";
 
-    /// <summary>รายได้สุทธิ — source: Summary_TotalNetJson.</summary>
-    public decimal? TotalNet { get; init; }
+    /// <summary>sec = section header · cat = category header · item = assumption · sub = category subtotal · total = bold total.</summary>
+    public string Kind { get; init; } = "item";
 
-    /// <summary>ตัวคูณลด — source: Summary_DiscountJson.</summary>
-    public decimal? Discount { get; init; }
+    /// <summary>Scriban math.format pattern for the cells (N2 money, N6 discount factor).</summary>
+    public string Format { get; init; } = "N2";
 
-    /// <summary>มูลค่าปัจจุบัน — source: Summary_PresentValueJson.</summary>
-    public decimal? PresentValue { get; init; }
+    /// <summary>One cell per year column of the block; null prints "-". Empty for sec/cat header rows.</summary>
+    public IReadOnlyList<decimal?> Cells { get; init; } = [];
+}
+
+/// <summary>One row of the assumption table.</summary>
+public sealed class IncomeAssumptionLine
+{
+    public int Number { get; init; }
+    public string Name { get; init; } = "";
+    /// <summary>Method code + Thai short name, e.g. "13 สัดส่วน".</summary>
+    public string Method { get; init; } = "";
+    /// <summary>Thai one-liner of the key inputs of Method_DetailJson; null when nothing was entered.</summary>
+    public string? Summary { get; init; }
 }

@@ -18,5 +18,7 @@ public record GetLeaseAgreementResponse(
     string? ContractRenewal,
     string? RentalTermsImpactingPropertyUse,
     string? TerminationOfLease,
-    string? Remark
+    string? Remark,
+    bool? IsLeaseRegistered,
+    bool? IsLeaseholdPledgeable
 );

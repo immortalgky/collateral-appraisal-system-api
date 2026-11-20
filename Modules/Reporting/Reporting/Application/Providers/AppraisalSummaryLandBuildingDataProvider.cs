@@ -132,7 +132,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT TOP 1
                 lad.OwnerName,
                 COALESCE(pUrban.[description], lad.UrbanPlanningType) AS UrbanPlanningType,
+                CASE WHEN lad.UrbanPlanningColor = N'99' THEN NULLIF(LTRIM(RTRIM(lad.UrbanPlanningColorOther)), N'')
+                     ELSE pUrbanColor.[description] END AS UrbanPlanningColor,
                 lad.ObligationDetails,
+                lad.ObligationType,
+                lad.MortgageDetails,
                 lad.Village,
                 lad.Soi,
                 lad.Street                AS Road,
@@ -166,6 +170,11 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                AND pUrban.[language] = 'TH'
                AND pUrban.[isactive] = 1
                AND pUrban.[code]     = lad.UrbanPlanningType
+            LEFT JOIN parameter.Parameters pUrbanColor
+                ON pUrbanColor.[group]    = 'UrbanPlanningColor'
+               AND pUrbanColor.[language] = 'TH'
+               AND pUrbanColor.[isactive] = 1
+               AND pUrbanColor.[code]     = lad.UrbanPlanningColor
             LEFT JOIN parameter.Parameters pLandOffice
                 ON pLandOffice.[group]    = 'LandOffice'
                AND pLandOffice.[language] = 'TH'
@@ -230,6 +239,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 landPfv.LandArea AS PricedLandArea,
                 landPfv.LandValue,
                 COALESCE(landPfv.BuildingValue, buildPfv.FinalValue) AS BuildingValue,
+                -- The Building Cost method typed by hand (ด้วยตนเอง: UseSystemCalc = 0), its value and its note.
+                CASE WHEN buildPfv.UseSystemCalc = 0 THEN buildPfv.FinalValue END AS ManualBuildingValue,
+                CASE WHEN buildPfv.UseSystemCalc = 0 THEN buildPfv.Remark END AS ManualBuildingRemark,
                 landPfv.FinalValueOverride AS LandUnitPrice,
                 totalPfv.EffectiveValue,
                 landPfv.ValuePerUnit,
@@ -327,7 +339,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 -- actually contains (a typed-over value included), and LEFT JOIN because a manually
                 -- valued BuildingCost may have no FinalValue row. Same read as GetAppraisalResult's
                 -- pbv and vw_CollateralResultExport's buildM, so the book and LOS agree.
-                SELECT TOP 1 COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue) AS FinalValue
+                SELECT TOP 1 COALESCE(pm.MethodValue, fv.IndicatedValue, fv.FinalValue) AS FinalValue,
+                       pm.UseSystemCalc, pm.Remark
                 FROM appraisal.PricingAnalysisApproaches pap
                 JOIN appraisal.PricingAnalysisMethods pm
                     ON pm.ApproachId = pap.Id AND pm.IsSelected = 1
@@ -375,6 +388,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             SELECT
                 ad.CommitteeOpinion,
                 ad.InternalAppraiserOpinion,
+                ad.AdditionalAssumptions,
                 ad.Condition,
                 ad.Remark
             FROM appraisal.AppraisalDecisions ad
@@ -431,9 +445,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 lt.LandParcelNumber,
                 lt.SurveyNumber,
                 lt.Rawang,
-                lt.MapSheetNumber,
-                lt.AerialMapName,
-                lt.AerialMapNumber,
                 lt.AreaRai,
                 lt.AreaNgan,
                 lt.AreaSquareWa,
@@ -459,6 +470,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 ap.Id                AS AppraisalPropertyId,
                 bad.PropertyName,
                 bad.OwnerName,
+                bad.IsOwnerVerified,
                 bad.BuildingType,
                 bad.ModelName,
                 bad.BuildingTypeOther,
@@ -659,9 +671,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
               AND EXISTS (SELECT 1 FROM appraisal.LandTitles lt
                           WHERE lt.LandAppraisalDetailId = lad.Id
                             AND ISNULL(lt.AreaRai, 0) * 400 + ISNULL(lt.AreaNgan, 0) * 100 + ISNULL(lt.AreaSquareWa, 0) > 0)
-            -- The form's order: EF loads this owned collection ordered by its key, so sort by the
-            -- same native uniqueidentifier comparison (no char cast, no CreatedAt).
-            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, d.Id;
+            -- The form's order: Deductions sorts by SequenceNumber, then Id (native uniqueidentifier comparison,
+            -- no char cast, no CreatedAt). Rows that predate the column are all 0 and fall back to Id.
+            ORDER BY pgi.PropertyGroupId, pgi.SequenceInGroup, d.SequenceNumber, d.Id;
+
+            -- RS27: Obligation code→Thai map (names of the other-obligation codes 03/04/05/99)
+            SELECT [code] AS Code, [description] AS Description
+            FROM parameter.Parameters
+            WHERE [group] = 'Obligation' AND [language] = 'TH' AND [isactive] = 1;
             """;
 
         var batchParams = new DynamicParameters();
@@ -694,6 +711,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         List<ConstructionProgressRow> constructionProgressRows;
         CollateralLocations locations;
         List<GroupDeductionRow> deductionRows;
+        List<ParamRow> obligationParams;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, batchParams))
         {
@@ -782,6 +800,9 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
             // RS26
             deductionRows = (await multi.ReadAsync<GroupDeductionRow>()).ToList();
+
+            // RS27
+            obligationParams = (await multi.ReadAsync<ParamRow>()).ToList();
         }
 
         var customerName = customerNames.Count > 0
@@ -1431,6 +1452,12 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                 g.UnitType, !isCost && hasLand, g.MethodRole, g.IncludeLandArea,
                 g.LandUnitPrice, g.ValuePerUnit, g.LandValue, marketLandArea);
 
+            // The land row's product (area x rate, whole baht, the way PricingAnalysisMethod.ApplyLandAreaValue computes it from the same net area) and whether the stored
+            // LandValue is neither that product nor its nearest 1,000 (what the screen's indicated value is and what a Role = Land method copies into LandValue): then
+            // the appraiser typed over it ("แก้เอง"). Neither the calculated figure nor a flag is stored, so this compares the stored inputs, only to word the line.
+            var landProduct = LandProduct(isLandRate, g.IncludeLandArea, g.LandValue, totalSquareWa, g.LandUnitPrice, g.ValuePerUnit);
+            var landValueOverridden = landProduct.HasValue && IsLandValueOverridden(g.LandValue!.Value, landProduct.Value);
+
             return new SummaryGroupRow
             {
                 GroupNumber = g.GroupNumber,
@@ -1517,7 +1544,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
                     ? Math.Round(totalSquareWa * g.LandUnitPrice.Value, 0, MidpointRounding.AwayFromZero)
                     : g.LandValue,
                 LandSubtotal = g.LandValue,
+                LandValueOverridden = landValueOverridden,
                 BuildingSubtotal = buildingSubtotal == 0m ? null : buildingSubtotal,
+                BuildingManualValue = g.ManualBuildingValue is > 0m ? g.ManualBuildingValue : null,
+                BuildingSubtotalComputed = buildingSubtotalFromRows == 0m ? null : buildingSubtotalFromRows,
+                BuildingOverrideValue = BuildingOverride(
+                    g.ManualBuildingValue is > 0m ? g.ManualBuildingValue : useSavedBuildingValue ? g.BuildingValue : null,
+                    buildingSubtotalFromRows),
+                BuildingManualRemark = string.IsNullOrWhiteSpace(g.ManualBuildingRemark) ? null : g.ManualBuildingRemark.Trim(),
                 BuildingSubtotalCurrent = buildingSubtotalCurrent == 0m ? null : buildingSubtotalCurrent,
                 BuildingSubtotalCompleted = buildingSubtotalCompleted == 0m ? null : buildingSubtotalCompleted,
                 BuildingSubtotalUnderConstruction = buildingSubtotalUc == 0m ? null : buildingSubtotalUc,
@@ -1675,8 +1709,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
 
         // Force-sale rate: appraisal override (valuation.ForceSaleRate) -> system default (passed in, as this
         // method is static). Drives CurrentConditionForcedSaleValue, and the 100% figure when none is persisted.
-        var forceSaleRate = valuation?.ForceSaleRate ?? forceSaleRateDefault;
-        if (forceSaleRate is <= 0 or > 100) forceSaleRate = 70m; // mirrors ForceSaleRateResolver
+        var forceSaleRate = BookForceSaleRate.Resolve(valuation?.ForceSaleRate, null, forceSaleRateDefault);
         decimal? forcedSaleValue = valuation?.ForcedSaleValue
             ?? (totalAppraisalValue.HasValue ? ForcedSaleOf(totalAppraisalValue.Value, forceSaleRate) : null);
 
@@ -1735,6 +1768,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             TotalAppraisalValue = totalAppraisalValue,
             BuildingCoverageAmount = buildingCoverage,
             ForcedSaleValue = forcedSaleValue,
+            ForceSaleRate = forceSaleRate,
             HasUnderConstruction = hasUnderConstruction,
             CurrentConditionTotal = currentConditionTotal,
             CurrentConditionForcedSaleValue = currentConditionForcedSale,
@@ -1749,15 +1783,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             // building-only appraisals keep the two rows independent, so a blank there stays blank
             // (rendered as "-" by .kv .v:empty::before) instead of echoing an unrelated name.
             BuildingOwner = groupBuildingRows
-                .Select(b => b.OwnerName)
+                .Select(b => AppraisalSummaryCommonLoader.OwnerDisplay(b.OwnerName, b.IsOwnerVerified))
                 .FirstOrDefault(o => !string.IsNullOrWhiteSpace(o))
                 ?? (isLandBuildingAppraisal ? land?.OwnerName : null),
             LandCondition = landCondition,
             LandConditions = landConditions,
-            Obligation = string.IsNullOrWhiteSpace(land?.ObligationDetails)
-                ? AppraisalSummaryModel.NoObligationText
-                : land!.ObligationDetails,
-            CityPlan = land?.UrbanPlanningType,
+            ObligationMortgage = ObligationText.Mortgage(land?.ObligationType, land?.MortgageDetails),
+            ObligationOthers = ObligationText.Others(land?.ObligationType, land?.ObligationDetails, ToParamMap(obligationParams)),
+            CityPlan = AppraisalSummaryCommonLoader.CityPlan(land?.UrbanPlanningColor, land?.UrbanPlanningType),
             Gps = gps,
             GovernmentAssessedValue = land?.GovernmentPrice,
             GovernmentPriceText = governmentPriceText,
@@ -1771,6 +1804,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
             IsLeasehold = methodFlags.IsLeasehold,
             IsProfitRent = methodFlags.IsProfitRent,
             AppraiserComment = AppraisalSummaryCommonLoader.FirstNonBlank(decision?.InternalAppraiserOpinion),
+            AdditionalAssumptions = decision?.AdditionalAssumptions is { } aa && !string.IsNullOrWhiteSpace(aa) ? aa.Trim() : null,
             AppraisalStaffName = staffName,
             AppraisalStaffPosition = staffPosition,
             AppraisalCheckerName = checkerName,
@@ -1832,6 +1866,13 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         if (pct.Value >= 100m) return value100;
         return Math.Round(value100.Value * pct.Value / 100m, 2, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>
+    /// The building value the appraiser set, when it is not the computed total: the screen's "Edited" test, an exact
+    /// comparison with no rounding (the rounding already happened per building). Null when there is none, or it equals the total.
+    /// </summary>
+    internal static decimal? BuildingOverride(decimal? used, decimal computed) =>
+        used is { } u && Math.Abs(u - computed) >= 0.005m ? u : null;
 
     /// <summary>
     /// A property's structure total — the Building Cost Value the appraiser saw on the form: their keyed
@@ -2109,7 +2150,10 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     {
         public string? OwnerName { get; init; }
         public string? UrbanPlanningType { get; init; }
+        public string? UrbanPlanningColor { get; init; }
         public string? ObligationDetails { get; init; }
+        public string? ObligationType { get; init; }
+        public string? MortgageDetails { get; init; }
         public string? Village { get; init; }
         public string? Soi { get; init; }
         public string? Road { get; init; }
@@ -2165,6 +2209,8 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? ApproachType { get; init; }            // "Cost" | "Market" | "Income" | "Residual"
         public decimal? LandValue { get; init; }
         public decimal? BuildingValue { get; init; }
+        public decimal? ManualBuildingValue { get; init; }   // Building Cost method, ด้วยตนเอง: its stored value
+        public string? ManualBuildingRemark { get; init; }   // …and the appraiser's note on where it came from
         public decimal? LandUnitPrice { get; init; }          // FinalValueOverride
         public decimal? PricedLandArea { get; init; }         // PricingFinalValues.LandArea — the area LandValue was priced on
         public decimal? EffectiveValue { get; init; }         // GroupAppraisalValue fallback only — SUM(IndicatedValue ?? FinalValue) across selected methods
@@ -2241,6 +2287,14 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     }
 
     /// <summary>
+    /// True when the stored land value is not one the system itself writes for this area and rate: pricing stores the product in whole baht (a Cost method on a
+    /// per-wa rate), and a Role = Land method copies the screen's indicated value, which is that product rounded to the nearest 1,000. Anything else was typed.
+    /// </summary>
+    internal static bool IsLandValueOverridden(decimal storedLandValue, decimal landProduct) =>
+        storedLandValue != landProduct
+        && storedLandValue != Math.Round(landProduct / 1000m, 0, MidpointRounding.AwayFromZero) * 1000m;
+
+    /// <summary>
     /// The market row's ส่วนพัฒนา lines: the development-only properties that have a line. A property with nothing
     /// recorded prints no line, and its remark (already null on such a row) goes with it.
     /// </summary>
@@ -2270,18 +2324,22 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         var noSurveyPage = title.TitleType?.Trim().ToUpperInvariant() is "NS3" or "NS3K" or "NS3KO";
         if (!noSurveyPage && !string.IsNullOrWhiteSpace(title.SurveyNumber))
             titleParts.Add($"หน้าสำรวจ {title.SurveyNumber}");
-        // The aerial-photo map (ระวางรูปถ่ายทางอากาศ) and its sheet are the น.ส.3 ก. counterpart of ระวาง.
-        // MapSheetNumber is its แผ่นที่; ระวาง proper lives in LandTitles.Rawang (โฉนด).
-        if (!string.IsNullOrWhiteSpace(title.AerialMapName))
-            titleParts.Add($"ระวางรูปถ่ายทางอากาศชื่อ {title.AerialMapName}");
-        if (!string.IsNullOrWhiteSpace(title.AerialMapNumber))
-            titleParts.Add($"หมายเลข {title.AerialMapNumber}");
-        if (!string.IsNullOrWhiteSpace(title.MapSheetNumber))
-            titleParts.Add($"แผ่นที่ {title.MapSheetNumber}");
         if (!string.IsNullOrWhiteSpace(title.Rawang))
             titleParts.Add($"ระวาง {title.Rawang}");
 
         return titleParts;
+    }
+
+    /// <summary>
+    /// The land row's product the way PricingAnalysisMethod.ApplyLandAreaValue computes it: area x rate, whole baht, where the rate is the typed-over one
+    /// (FinalValueOverride) else the calculated one (ValuePerUnit). Null when the group is not priced per area, excludes the land area, has no land value or no area.
+    /// </summary>
+    internal static decimal? LandProduct(bool isLandRate, bool? includeLandArea, decimal? landValue, decimal area, decimal? landUnitPrice, decimal? valuePerUnit)
+    {
+        var rate = landUnitPrice ?? valuePerUnit;
+        return isLandRate && includeLandArea != false && landValue.HasValue && area > 0m && rate.HasValue
+            ? Math.Round(area * rate.Value, 0, MidpointRounding.AwayFromZero)
+            : null;
     }
 
     /// <summary>
@@ -2376,6 +2434,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
     {
         public string? CommitteeOpinion { get; init; }
         public string? InternalAppraiserOpinion { get; init; }
+        public string? AdditionalAssumptions { get; init; }
         public string? Condition { get; init; }
         public string? Remark { get; init; }
     }
@@ -2443,9 +2502,6 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public string? LandParcelNumber { get; init; }
         public string? SurveyNumber { get; init; }
         public string? Rawang { get; init; }
-        public string? MapSheetNumber { get; init; }
-        public string? AerialMapName { get; init; }
-        public string? AerialMapNumber { get; init; }
         public decimal? AreaRai { get; init; }
         public decimal? AreaNgan { get; init; }
         public decimal? AreaSquareWa { get; init; }
@@ -2475,6 +2531,7 @@ public sealed class AppraisalSummaryLandBuildingDataProvider(
         public Guid AppraisalPropertyId { get; init; }
         public string? PropertyName { get; init; }
         public string? OwnerName { get; init; }
+        public bool? IsOwnerVerified { get; init; }
         public int SequenceInGroup { get; init; }
         public string? BuildingTypeDisplay { get; init; }
         public decimal? NumberOfFloors { get; init; }

@@ -17,7 +17,9 @@ public class LandAppraisalDetail : Entity<Guid>
         _titles.OrderBy(t => t.SequenceNumber).ThenBy(t => new SqlGuid(t.Id)).ToList().AsReadOnly();
 
     private readonly List<LandAreaDeduction> _deductions = [];
-    public IReadOnlyList<LandAreaDeduction> Deductions => _deductions.AsReadOnly();
+    // Same ordering as Titles: SequenceNumber, then Id the way SQL Server compares uniqueidentifier.
+    public IReadOnlyList<LandAreaDeduction> Deductions =>
+        _deductions.OrderBy(d => d.SequenceNumber).ThenBy(d => new SqlGuid(d.Id)).ToList().AsReadOnly();
 
     // Foreign Key - 1:1 with AppraisalProperties
     public Guid AppraisalPropertyId { get; private set; }
@@ -39,13 +41,15 @@ public class LandAppraisalDetail : Entity<Guid>
     // Owner
     public string? OwnerName { get; private set; } = null!;
     public bool? IsOwnerVerified { get; private set; }
-    public string? HasObligation { get; private set; }
+    public List<string>? ObligationType { get; private set; }
     public string? ObligationDetails { get; private set; }
+    public string? MortgageDetails { get; private set; }
 
     // Document Verification
     public bool? IsLandLocationVerified { get; private set; }
-    public string? LandCheckMethodType { get; private set; }
+    public List<string>? LandCheckMethodType { get; private set; }
     public string? LandCheckMethodTypeOther { get; private set; }
+    public string? LandLocationRemark { get; private set; }
 
     // Location Details
     public string? Street { get; private set; }
@@ -57,7 +61,12 @@ public class LandAppraisalDetail : Entity<Guid>
     // Land Characteristics
     public string? LandShapeType { get; private set; }
     public string? LandShapeTypeOther { get; private set; }
+    // Suitability for development (group DevelopmentSuitability) — split out of LandShape codes 01-03.
+    public string? DevelopmentSuitabilityType { get; private set; }
     public string? UrbanPlanningType { get; private set; }
+    // สีผังเมืองตามแผนผังจริง (group UrbanPlanningColor; 99 = other, text in UrbanPlanningColorOther)
+    public string? UrbanPlanningColor { get; private set; }
+    public string? UrbanPlanningColorOther { get; private set; }
     public List<string>? LandZoneType { get; private set; }
     public string? LandZoneTypeOther { get; private set; }
     public List<string>? PlotLocationType { get; private set; }
@@ -68,8 +77,10 @@ public class LandAppraisalDetail : Entity<Guid>
     public decimal? SoilLevel { get; private set; }
 
     // Road Access
-    public decimal? AccessRoadWidth { get; private set; }
-    public short? RightOfWay { get; private set; }
+    // CarriagewayWidth = ผิวจราจรกว้าง (metres); RightOfWayWidth = เขตทางกว้าง (metres); NumberOfLanes = จำนวนช่องจราจร
+    public decimal? CarriagewayWidth { get; private set; }
+    public decimal? RightOfWayWidth { get; private set; }
+    public short? NumberOfLanes { get; private set; }
     public decimal? RoadFrontage { get; private set; }
     public int? NumberOfSidesFacingRoad { get; private set; }
     public string? RoadPassInFrontOfLand { get; private set; }
@@ -89,6 +100,8 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? LandEntranceExitTypeOther { get; private set; }
     public List<string>? TransportationAccessType { get; private set; }
     public string? TransportationAccessTypeOther { get; private set; }
+    public List<string>? EnvironmentType { get; private set; }
+    public string? EnvironmentTypeOther { get; private set; }
     public string? PropertyAnticipationType { get; private set; }
     public string? PropertyAnticipationTypeOther { get; private set; }
 
@@ -117,6 +130,7 @@ public class LandAppraisalDetail : Entity<Guid>
     public string? OtherLegalLimitations { get; private set; }
     public List<string>? EvictionType { get; private set; }
     public string? EvictionTypeOther { get; private set; }
+    public string? EvictionRemark { get; private set; }
     public string? AllocationType { get; private set; }
 
     // Adjacent Boundaries (North/South/East/West)
@@ -138,6 +152,16 @@ public class LandAppraisalDetail : Entity<Guid>
 
     // Rental Flag
     public bool? IsRentedOut { get; private set; }
+
+    // Surroundings (appraisal book 1.5)
+    public bool? HasFloodProblem { get; private set; }
+    public string? FloodProblemRemark { get; private set; }
+    public bool? HasPollutionProblem { get; private set; }
+    public List<string>? PollutionType { get; private set; }
+    public string? PollutionTypeOther { get; private set; }
+    public string? PollutionProblemRemark { get; private set; }
+    public bool? HasOtherEnvironmentProblem { get; private set; }
+    public string? OtherEnvironmentProblemRemark { get; private set; }
 
     /// <summary>
     /// Registered area across all title deeds — the legal fact. Report this to Collateral Master,
@@ -186,12 +210,14 @@ public class LandAppraisalDetail : Entity<Guid>
         // Owner
         string? ownerName = null,
         bool? isOwnerVerified = null,
-        string? hasObligation = null,
+        List<string>? obligationType = null,
         string? obligationDetails = null,
+        string? mortgageDetails = null,
         // Document Verification
         bool? isLandLocationVerified = null,
-        string? landCheckMethodType = null,
+        List<string>? landCheckMethodType = null,
         string? landCheckMethodTypeOther = null,
+        string? landLocationRemark = null,
         // Location Details
         string? street = null,
         string? soi = null,
@@ -211,8 +237,8 @@ public class LandAppraisalDetail : Entity<Guid>
         decimal? landFillPercent = null,
         decimal? soilLevel = null,
         // Road Access
-        decimal? accessRoadWidth = null,
-        short? rightOfWay = null,
+        decimal? carriagewayWidth = null,
+        decimal? rightOfWayWidth = null,
         decimal? roadFrontage = null,
         int? numberOfSidesFacingRoad = null,
         string? roadPassInFrontOfLand = null,
@@ -231,6 +257,8 @@ public class LandAppraisalDetail : Entity<Guid>
         string? landEntranceExitTypeOther = null,
         List<string>? transportationAccessType = null,
         string? transportationAccessTypeOther = null,
+        List<string>? environmentType = null,
+        string? environmentTypeOther = null,
         string? propertyAnticipationType = null,
         string? propertyAnticipationTypeOther = null,
         // Legal Restrictions
@@ -248,6 +276,7 @@ public class LandAppraisalDetail : Entity<Guid>
         string? otherLegalLimitations = null,
         List<string>? evictionType = null,
         string? evictionTypeOther = null,
+        string? evictionRemark = null,
         string? allocationType = null,
         // Adjacent Boundaries
         string? northAdjacentArea = null,
@@ -268,7 +297,20 @@ public class LandAppraisalDetail : Entity<Guid>
         bool? isRentedOut = null,
         // Address scalar + Dopa (at end to avoid breaking existing positional callers)
         string? landOffice = null,
-        Address? dopaAddress = null)
+        Address? dopaAddress = null,
+        // Surroundings (appraisal book 1.5)
+        bool? hasFloodProblem = null,
+        string? floodProblemRemark = null,
+        bool? hasPollutionProblem = null,
+        List<string>? pollutionType = null,
+        string? pollutionTypeOther = null,
+        string? pollutionProblemRemark = null,
+        bool? hasOtherEnvironmentProblem = null,
+        string? otherEnvironmentProblemRemark = null,
+        short? numberOfLanes = null,
+        string? developmentSuitabilityType = null,
+        string? urbanPlanningColor = null,
+        string? urbanPlanningColorOther = null)
     {
         // Property Identification
         PropertyName = propertyName;
@@ -279,13 +321,15 @@ public class LandAppraisalDetail : Entity<Guid>
         // Owner (OwnerName is required, keep null check; bool fields keep check since non-nullable)
         OwnerName = ownerName;
         IsOwnerVerified = isOwnerVerified;
-        HasObligation = hasObligation;
+        ObligationType = obligationType;
         ObligationDetails = obligationDetails;
+        MortgageDetails = mortgageDetails;
 
         // Document Verification
         IsLandLocationVerified = isLandLocationVerified;
         LandCheckMethodType = landCheckMethodType;
         LandCheckMethodTypeOther = landCheckMethodTypeOther;
+        LandLocationRemark = landLocationRemark;
 
         // Location Details
         Street = street;
@@ -308,8 +352,8 @@ public class LandAppraisalDetail : Entity<Guid>
         SoilLevel = soilLevel;
 
         // Road Access
-        AccessRoadWidth = accessRoadWidth;
-        RightOfWay = rightOfWay;
+        CarriagewayWidth = carriagewayWidth;
+        RightOfWayWidth = rightOfWayWidth;
         RoadFrontage = roadFrontage;
         NumberOfSidesFacingRoad = numberOfSidesFacingRoad;
         RoadPassInFrontOfLand = roadPassInFrontOfLand;
@@ -329,6 +373,8 @@ public class LandAppraisalDetail : Entity<Guid>
         LandEntranceExitTypeOther = landEntranceExitTypeOther;
         TransportationAccessType = transportationAccessType;
         TransportationAccessTypeOther = transportationAccessTypeOther;
+        EnvironmentType = environmentType;
+        EnvironmentTypeOther = environmentTypeOther;
         PropertyAnticipationType = propertyAnticipationType;
         PropertyAnticipationTypeOther = propertyAnticipationTypeOther;
 
@@ -347,6 +393,7 @@ public class LandAppraisalDetail : Entity<Guid>
         OtherLegalLimitations = otherLegalLimitations;
         EvictionType = evictionType;
         EvictionTypeOther = evictionTypeOther;
+        EvictionRemark = evictionRemark;
         AllocationType = allocationType;
 
         // Adjacent Boundaries
@@ -372,6 +419,20 @@ public class LandAppraisalDetail : Entity<Guid>
         // Address scalar + Dopa
         LandOffice = landOffice;
         DopaAddress = dopaAddress;
+
+        // Surroundings (appraisal book 1.5)
+        HasFloodProblem = hasFloodProblem;
+        FloodProblemRemark = floodProblemRemark;
+        HasPollutionProblem = hasPollutionProblem;
+        PollutionType = pollutionType;
+        PollutionTypeOther = pollutionTypeOther;
+        PollutionProblemRemark = pollutionProblemRemark;
+        HasOtherEnvironmentProblem = hasOtherEnvironmentProblem;
+        OtherEnvironmentProblemRemark = otherEnvironmentProblemRemark;
+        NumberOfLanes = numberOfLanes;
+        DevelopmentSuitabilityType = developmentSuitabilityType;
+        UrbanPlanningColor = urbanPlanningColor;
+        UrbanPlanningColorOther = urbanPlanningColorOther;
     }
 
     public static LandAppraisalDetail CopyFrom(LandAppraisalDetail source, Guid newPropertyId)
@@ -393,11 +454,13 @@ public class LandAppraisalDetail : Entity<Guid>
                 : null,
             OwnerName = source.OwnerName,
             IsOwnerVerified = source.IsOwnerVerified,
-            HasObligation = source.HasObligation,
+            ObligationType = source.ObligationType?.ToList(),
             ObligationDetails = source.ObligationDetails,
+            MortgageDetails = source.MortgageDetails,
             IsLandLocationVerified = source.IsLandLocationVerified,
-            LandCheckMethodType = source.LandCheckMethodType,
+            LandCheckMethodType = source.LandCheckMethodType?.ToList(),
             LandCheckMethodTypeOther = source.LandCheckMethodTypeOther,
+            LandLocationRemark = source.LandLocationRemark,
             Street = source.Street,
             Soi = source.Soi,
             DistanceFromMainRoad = source.DistanceFromMainRoad,
@@ -405,7 +468,10 @@ public class LandAppraisalDetail : Entity<Guid>
             AddressLocation = source.AddressLocation,
             LandShapeType = source.LandShapeType,
             LandShapeTypeOther = source.LandShapeTypeOther,
+            DevelopmentSuitabilityType = source.DevelopmentSuitabilityType,
             UrbanPlanningType = source.UrbanPlanningType,
+            UrbanPlanningColor = source.UrbanPlanningColor,
+            UrbanPlanningColorOther = source.UrbanPlanningColorOther,
             LandZoneType = source.LandZoneType?.ToList(),
             LandZoneTypeOther = source.LandZoneTypeOther,
             PlotLocationType = source.PlotLocationType?.ToList(),
@@ -414,8 +480,9 @@ public class LandAppraisalDetail : Entity<Guid>
             LandFillTypeOther = source.LandFillTypeOther,
             LandFillPercent = source.LandFillPercent,
             SoilLevel = source.SoilLevel,
-            AccessRoadWidth = source.AccessRoadWidth,
-            RightOfWay = source.RightOfWay,
+            CarriagewayWidth = source.CarriagewayWidth,
+            RightOfWayWidth = source.RightOfWayWidth,
+            NumberOfLanes = source.NumberOfLanes,
             RoadFrontage = source.RoadFrontage,
             NumberOfSidesFacingRoad = source.NumberOfSidesFacingRoad,
             RoadPassInFrontOfLand = source.RoadPassInFrontOfLand,
@@ -433,6 +500,8 @@ public class LandAppraisalDetail : Entity<Guid>
             LandEntranceExitTypeOther = source.LandEntranceExitTypeOther,
             TransportationAccessType = source.TransportationAccessType?.ToList(),
             TransportationAccessTypeOther = source.TransportationAccessTypeOther,
+            EnvironmentType = source.EnvironmentType?.ToList(),
+            EnvironmentTypeOther = source.EnvironmentTypeOther,
             PropertyAnticipationType = source.PropertyAnticipationType,
             PropertyAnticipationTypeOther = source.PropertyAnticipationTypeOther,
             IsExpropriated = source.IsExpropriated,
@@ -449,6 +518,7 @@ public class LandAppraisalDetail : Entity<Guid>
             OtherLegalLimitations = source.OtherLegalLimitations,
             EvictionType = source.EvictionType?.ToList(),
             EvictionTypeOther = source.EvictionTypeOther,
+            EvictionRemark = source.EvictionRemark,
             AllocationType = source.AllocationType,
             NorthAdjacentArea = source.NorthAdjacentArea,
             NorthBoundaryLength = source.NorthBoundaryLength,
@@ -463,7 +533,15 @@ public class LandAppraisalDetail : Entity<Guid>
             HasBuilding = source.HasBuilding,
             HasBuildingOther = source.HasBuildingOther,
             Remark = source.Remark,
-            IsRentedOut = source.IsRentedOut
+            IsRentedOut = source.IsRentedOut,
+            HasFloodProblem = source.HasFloodProblem,
+            FloodProblemRemark = source.FloodProblemRemark,
+            HasPollutionProblem = source.HasPollutionProblem,
+            PollutionType = source.PollutionType?.ToList(),
+            PollutionTypeOther = source.PollutionTypeOther,
+            PollutionProblemRemark = source.PollutionProblemRemark,
+            HasOtherEnvironmentProblem = source.HasOtherEnvironmentProblem,
+            OtherEnvironmentProblemRemark = source.OtherEnvironmentProblemRemark
         };
 
         foreach (var title in source.Titles)
@@ -486,6 +564,7 @@ public class LandAppraisalDetail : Entity<Guid>
         {
             var deductionCopy = LandAreaDeduction.Create(copy.Id, deduction.ReasonCode);
             deductionCopy.Update(deduction.ReasonOther, deduction.AreaInSqWa, deduction.Remark);
+            deductionCopy.SetSequenceNumber(copy._deductions.Count + 1); // source order, 1..n
             copy._deductions.Add(deductionCopy);
         }
 
@@ -557,6 +636,9 @@ public class LandAppraisalDetail : Entity<Guid>
 
     public void AddDeduction(LandAreaDeduction deduction)
     {
+        // Added without a position goes last, as AddTitle does.
+        if (deduction.SequenceNumber == 0)
+            deduction.SetSequenceNumber(_deductions.Count == 0 ? 1 : _deductions.Max(d => d.SequenceNumber) + 1);
         _deductions.Add(deduction);
         SumDeductions();
     }

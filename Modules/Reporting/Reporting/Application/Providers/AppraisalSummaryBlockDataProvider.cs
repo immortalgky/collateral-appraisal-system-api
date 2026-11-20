@@ -385,6 +385,7 @@ public sealed class AppraisalSummaryBlockDataProvider(
             TotalAppraisalValue = totalAppraisalValue,
             BuildingCoverageAmount = common.BuildingCoverageAmount,
             ForcedSaleValue    = common.ForcedSaleValue,
+            ForceSaleRate    = common.ForceSaleRate,
             Condition          = common.Condition,
             Remark             = common.Remark,
 
@@ -422,6 +423,8 @@ public sealed class AppraisalSummaryBlockDataProvider(
             IsProfitRent = methodFlags.IsProfitRent,
 
             AppraiserComment        = common.AppraiserComment,
+
+            AdditionalAssumptions        = common.AdditionalAssumptions,
             AppraisalStaffName      = common.StaffName,
             AppraisalStaffPosition  = common.StaffPosition,
             AppraisalCheckerName    = common.CheckerName,

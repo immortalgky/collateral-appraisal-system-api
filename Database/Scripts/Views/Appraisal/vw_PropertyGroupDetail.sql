@@ -77,7 +77,9 @@ SELECT PG.AppraisalId,
            WHEN AP.PropertyType IN ('L', 'LB', 'LSL', 'LS') THEN LTN.TitleNumbers
            WHEN AP.PropertyType IN ('U', 'LSU') THEN C.TitleNumber
            END                                                       AS TitleNo,
-       L.IsRentedOut                                                 AS IsRentedOut
+       -- Land (L/LB) or condo (U): the flag that makes a plain property a rental source. Only one of
+       -- the two detail rows exists for a property, so COALESCE picks the one that is there.
+       COALESCE(L.IsRentedOut, C.IsRentedOut)                        AS IsRentedOut
 FROM appraisal.PropertyGroups PG
          LEFT JOIN appraisal.PricingAnalysis PA ON PA.AnchorId = PG.Id AND PA.SubjectType = 0
          LEFT JOIN appraisal.PropertyGroupItems PGI ON PGI.PropertyGroupId = PG.Id

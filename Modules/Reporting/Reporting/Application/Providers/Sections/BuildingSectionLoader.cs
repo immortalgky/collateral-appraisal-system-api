@@ -1,5 +1,6 @@
 using System.Data;
 using Reporting.Application.Models.Sections;
+using Shared.DDD;
 
 namespace Reporting.Application.Providers.Sections;
 
@@ -71,9 +72,22 @@ internal static class BuildingSectionLoader
                      ELSE COALESCE(ptBT.Description, bad.BuildingTypeOther, bad.BuildingType) END
                                               AS BuildingTypeText,
                 bad.NumberOfFloors,
+                bad.IsAppraisable,
+                bad.NotAppraisableReason,
+                bad.IsUnderConstruction,
+                -- Construction progress: ConstructionInspections.SummaryCurrentProgressPct holds the inspection-level result in BOTH modes
+                -- (ConstructionInspection.RecomputeSummary; see the header of vw_AppraisalConstructionProgress), so nothing branches on
+                -- IsFullDetail. Clamped to 0-100 like that view's displayed figure. NULL (never a made-up 0%) when the building has no inspection
+                -- or no figure was ever keyed. ConstructionInspections is unique per property (IX_ConstructionInspections_AppraisalPropertyId),
+                -- so the LEFT JOIN never repeats a building.
+                CASE WHEN ci.SummaryCurrentProgressPct < 0   THEN 0
+                     WHEN ci.SummaryCurrentProgressPct > 100 THEN 100
+                     ELSE ci.SummaryCurrentProgressPct END
+                                              AS ConstructionProgressPct,
                 bad.ModelName,
                 bad.PropertyName              AS BuildingName,
                 bad.OwnerName,
+                bad.IsOwnerVerified,
                 bad.BuiltOnTitleNumber,
                 bad.TotalBuildingArea         AS UsableArea,
                 bad.BuildingAge,
@@ -103,9 +117,62 @@ internal static class BuildingSectionLoader
                 bad.DecorationTypeOther,
                 bad.ConstructionType,
                 bad.ConstructionTypeOther,
+                bad.BuildingWidth,
+                bad.BuildingLength,
+                bad.SpaceDivision,
+                bad.MaintenanceType,
+                bad.MaintenanceTypeOther,
+                bad.DoorType,
+                bad.DoorTypeOther,
+                bad.WindowType,
+                bad.WindowTypeOther,
+                bad.SanitaryType,
+                bad.SanitaryTypeOther,
+                bad.BuildingSystemType,
+                bad.BuildingSystemTypeOther,
+                bad.ConstructionLicenseNumber         AS LicenseNumber,
+                bad.ConstructionLicenseExpirationDate AS LicenseExpiration,
+                bad.BuildingInsurancePrice            AS InsurancePrice,
+                -- The cost table is only a reference when the building cost was not part of the group's value: the group's
+                -- selected Cost approach must hold a selected BuildingCost method (or, when it selects none, a BuildingCost
+                -- that carries a value — the rule PricingMethodPicker applies). A selected Cost approach whose only selected
+                -- method is a land+building WQS already values the building; this table is then just for reference.
+                -- An ungrouped building has no pricing context, so it is not labelled.
+                CAST(CASE WHEN pg.Id IS NULL THEN 0
+                          WHEN EXISTS (SELECT 1 FROM appraisal.PricingAnalysis pa
+                                       JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
+                                       JOIN appraisal.PricingAnalysisMethods pam ON pam.ApproachId = paa.Id
+                                       WHERE pa.AnchorId = pg.Id AND pa.SubjectType = 0
+                                         AND paa.ApproachType = 'Cost' AND paa.IsSelected = 1
+                                         AND pam.MethodType = 'BuildingCost'
+                                         AND (pam.IsSelected = 1
+                                              OR (pam.MethodValue IS NOT NULL
+                                                  AND NOT EXISTS (SELECT 1 FROM appraisal.PricingAnalysisMethods p2
+                                                                  WHERE p2.ApproachId = paa.Id AND p2.IsSelected = 1))))
+                          THEN 0 ELSE 1 END AS bit)       AS CostIsReference,
+                (SELECT TOP 1 paa.ApproachValue
+                 FROM appraisal.PricingAnalysis pa
+                 JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
+                 WHERE pa.AnchorId = pg.Id AND pa.SubjectType = 0 AND paa.ApproachType = 'Cost'
+                 ORDER BY paa.Id)                         AS CostApproachValue,
+                (SELECT SUM(pam.MethodValue)
+                 FROM appraisal.PricingAnalysis pa
+                 JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
+                 JOIN appraisal.PricingAnalysisMethods pam ON pam.ApproachId = paa.Id
+                 WHERE pa.AnchorId = pg.Id AND pa.SubjectType = 0 AND paa.ApproachType = 'Cost'
+                   AND pam.IsSelected = 1 AND pam.Role = 'Land') AS CostLandValue,
+                -- หมายเหตุและสมมติฐาน of the group's BuildingCost method (the selected one first).
+                (SELECT TOP 1 LTRIM(RTRIM(pam.Remark))
+                 FROM appraisal.PricingAnalysis pa
+                 JOIN appraisal.PricingAnalysisApproaches paa ON paa.PricingAnalysisId = pa.Id
+                 JOIN appraisal.PricingAnalysisMethods pam ON pam.ApproachId = paa.Id
+                 WHERE pa.AnchorId = pg.Id AND pa.SubjectType = 0 AND pam.MethodType = 'BuildingCost'
+                   AND NULLIF(LTRIM(RTRIM(pam.Remark)), '') IS NOT NULL
+                 ORDER BY paa.IsSelected DESC, pam.IsSelected DESC, pam.Id) AS CostMethodRemark,
                 bad.Remark
             FROM appraisal.BuildingAppraisalDetails bad
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            LEFT JOIN appraisal.ConstructionInspections ci ON ci.AppraisalPropertyId = ap.Id
             LEFT JOIN appraisal.PropertyGroupItems pgi ON pgi.AppraisalPropertyId = ap.Id
             LEFT JOIN appraisal.PropertyGroups     pg  ON pg.Id = pgi.PropertyGroupId
             LEFT JOIN parameter.Parameters ptBT
@@ -123,7 +190,10 @@ internal static class BuildingSectionLoader
 
             -- RS02: Depreciation/cost rows for ALL buildings, keyed by parent for grouping.
             SELECT
+                bdd.Id                         AS DetailId,
                 bdd.BuildingAppraisalDetailId,
+                bdd.DepreciationMethod,
+                bdd.PricePerSqMAfterDepreciation,
                 bdd.AreaDescription,
                 bdd.Area,
                 bdd.PricePerSqMBeforeDepreciation,
@@ -133,6 +203,7 @@ internal static class BuildingSectionLoader
                 bdd.TotalDepreciationPct,
                 bdd.PriceDepreciation          AS DepreciationAmount,
                 bdd.PriceAfterDepreciation,
+                bdd.IsBuilding,
                 bad.BuildingCostValue
             FROM appraisal.BuildingDepreciationDetails bdd
             JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
@@ -149,7 +220,8 @@ internal static class BuildingSectionLoader
               AND [group] IN (
                   'BuildingMaterial', 'BuildingStyle', 'Utilization', 'GeneralStructure',
                   'RoofFrame', 'Roof', 'Ceiling', 'Interior', 'Exterior',
-                  'Decoration', 'ConstructionType', 'FloorType', 'FloorStructure', 'FloorSurface');
+                  'Decoration', 'ConstructionType', 'FloorType', 'FloorStructure', 'FloorSurface',
+                  'BuildingMaintenance', 'Door', 'Window', 'Sanitary', 'BuildingSystem');
 
             -- RS04: Per-floor-range surface rows (FSD #22–26) for ALL buildings, keyed by parent.
             SELECT
@@ -166,12 +238,47 @@ internal static class BuildingSectionLoader
             JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
             WHERE ap.AppraisalId = @AppraisalId
             ORDER BY bas.BuildingAppraisalDetailId, bas.FromFloorNumber, bas.Id;
+
+            -- RS05: ONE photo per building — the thumbnail, else the lowest SequenceNumber (LinkedAt, then Id break ties;
+            -- v7 Guids are not time-ordered so Id alone is not a ranking). File/mime resolve as AppendixSectionLoader does:
+            -- document.Documents first, the denormalized gallery columns only as fallback. Images only.
+            SELECT BuildingDetailId, FilePath
+            FROM (
+                SELECT bad.Id AS BuildingDetailId,
+                       COALESCE(d.StoragePath, g.FilePath) AS FilePath,
+                       ROW_NUMBER() OVER (PARTITION BY bad.Id
+                                          ORDER BY ppm.IsThumbnail DESC, ppm.SequenceNumber, ppm.LinkedAt, ppm.Id) AS Rn
+                FROM appraisal.BuildingAppraisalDetails bad
+                JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+                JOIN appraisal.PropertyPhotoMappings ppm ON ppm.AppraisalPropertyId = ap.Id
+                JOIN appraisal.AppraisalGallery g ON g.Id = ppm.GalleryPhotoId
+                LEFT JOIN document.Documents d ON d.Id = g.DocumentId
+                WHERE ap.AppraisalId = @AppraisalId
+                  -- images only, BEFORE the ranking: a PDF ranked first must not take the building's photo slot
+                  AND COALESCE(d.MimeType, g.MimeType) LIKE 'image/%'
+                  AND COALESCE(d.StoragePath, g.FilePath) IS NOT NULL
+                  -- the gallery's own FilePath is only a fallback for a photo with no document row at all (d is the unfiltered join):
+                  -- a photo whose document was deleted or deactivated is gone, and must not come back through the denormalised path
+                  AND (d.Id IS NULL OR (d.IsActive = 1 AND d.IsDeleted = 0))
+            ) x
+            WHERE Rn = 1;
+
+            -- RS06: depreciation rate by year range, per cost row (Gross mode = one row 1..age).
+            SELECT bdp.BuildingDepreciationDetailId AS DetailId, bdp.AtYear, bdp.ToYear, bdp.DepreciationPerYear
+            FROM appraisal.BuildingDepreciationPeriods bdp
+            JOIN appraisal.BuildingDepreciationDetails bdd ON bdd.Id = bdp.BuildingDepreciationDetailId
+            JOIN appraisal.BuildingAppraisalDetails bad ON bad.Id = bdd.BuildingAppraisalDetailId
+            JOIN appraisal.AppraisalProperties ap ON ap.Id = bad.AppraisalPropertyId
+            WHERE ap.AppraisalId = @AppraisalId
+            ORDER BY bdp.BuildingDepreciationDetailId, bdp.AtYear, bdp.ToYear;
             """;
 
         List<BuildingHeaderRow> headerRows;
         List<DepreciationRow> rawRows;
         List<ParamRow> paramRows;
         List<SurfaceRow> surfaceRows;
+        List<PhotoRow> photoRows;
+        ILookup<Guid, DepreciationPeriodRow> periodsByDetail;
 
         using (var multi = await connection.QueryMultipleAsync(batchSql, appraisalParams))
         {
@@ -186,6 +293,13 @@ internal static class BuildingSectionLoader
 
             // RS04 — floor surface rows
             surfaceRows = (await multi.ReadAsync<SurfaceRow>()).ToList();
+
+            // RS05 — one photo per building
+            photoRows = (await multi.ReadAsync<PhotoRow>()).ToList();
+
+            // RS06 — depreciation periods per cost row
+            periodsByDetail = (await multi.ReadAsync<PeriodRow>()).ToLookup(
+                r => r.DetailId, r => new DepreciationPeriodRow { AtYear = r.AtYear, ToYear = r.ToYear, DepreciationPerYear = r.DepreciationPerYear });
         }
 
         if (headerRows.Count == 0)
@@ -211,7 +325,7 @@ internal static class BuildingSectionLoader
         {
             var map = paramMaps.GetValueOrDefault(group);
             var trimmedOther = string.IsNullOrWhiteSpace(other) ? null : other.Trim();
-            var codes = ParseJsonArray(raw).ToList();
+            var codes = AppraisalSummaryCommonLoader.OrderCodes(ParseJsonArray(raw));
             var hasOtherCode = codes.Any(c => c == OtherCode);
             var items = codes
                 .Select(c =>
@@ -224,6 +338,8 @@ internal static class BuildingSectionLoader
                 items.Add(trimmedOther);
             return items.Count > 0 ? string.Join(", ", items) : null;
         }
+
+        var photoByBuilding = photoRows.ToDictionary(r => r.BuildingDetailId, r => AppendixSectionLoader.ToFileUri(r.FilePath));
 
         // Cost rows and floor surfaces grouped by their parent building.
         var depByBuilding = rawRows
@@ -241,18 +357,25 @@ internal static class BuildingSectionLoader
             var surfaces = surfacesByBuilding.GetValueOrDefault(hdr.BuildingDetailId) ?? [];
 
             var costRows = deps
-                .Select((r, i) => new BuildingCostRow
+                .Select((r, i) =>
                 {
-                    Sequence = i + 1,
-                    AreaItemName = r.AreaDescription,
-                    Area = r.Area == 0 ? null : r.Area,
-                    PricePerSqm = r.PricePerSqMBeforeDepreciation == 0 ? null : r.PricePerSqMBeforeDepreciation,
-                    Price = r.PriceBeforeDepreciation == 0 ? null : r.PriceBeforeDepreciation,
-                    AgeYears = r.AgeYears == 0 ? null : r.AgeYears,
-                    DepreciationPctPerYear = r.DepreciationYearPct == 0 ? null : r.DepreciationYearPct,
-                    TotalDepreciationPct = r.TotalDepreciationPct == 0 ? null : r.TotalDepreciationPct,
-                    DepreciationAmount = r.DepreciationAmount == 0 ? null : r.DepreciationAmount,
-                    ValueAfterDepreciation = r.PriceAfterDepreciation == 0 ? null : r.PriceAfterDepreciation,
+                    var periods = periodsByDetail[r.DetailId].ToList();
+                    return new BuildingCostRow
+                    {
+                        Sequence = i + 1,
+                        AreaItemName = r.AreaDescription,
+                        Area = r.Area == 0 ? null : r.Area,
+                        PricePerSqm = r.PricePerSqMBeforeDepreciation == 0 ? null : r.PricePerSqMBeforeDepreciation,
+                        Price = r.PriceBeforeDepreciation == 0 ? null : r.PriceBeforeDepreciation,
+                        AgeYears = r.AgeYears == 0 ? null : r.AgeYears,
+                        DepreciationPctPerYear = PerYearPct(r.DepreciationMethod, r.DepreciationYearPct, periods),
+                        TotalDepreciationPct = r.TotalDepreciationPct == 0 ? null : r.TotalDepreciationPct,
+                        DepreciationAmount = r.DepreciationAmount == 0 ? null : r.DepreciationAmount,
+                        ValueAfterDepreciation = r.PriceAfterDepreciation == 0 ? null : r.PriceAfterDepreciation,
+                        DepreciationMethod = DepreciationMethodLabel(r.DepreciationMethod),
+                        PricePerSqmAfterDepreciation = r.PricePerSqMAfterDepreciation == 0 ? null : r.PricePerSqMAfterDepreciation,
+                        Periods = periods,
+                    };
                 })
                 .ToList();
 
@@ -264,12 +387,13 @@ internal static class BuildingSectionLoader
             // nearest 1,000. The rows above keep their own exact figures — this is the line the rest of
             // the appraisal reads off, so it has to agree with the form and with the summary report.
             // KEEP IN SYNC with AppraisalSummaryLandBuildingDataProvider's buildingValueById.
-            decimal? totalValueAfterDepr = deps.Count == 0
-                ? null
-                : deps[0].BuildingCostValue
-                  ?? Math.Round(
-                      deps.Sum(r => r.PriceAfterDepreciation) / 1000m,
-                      MidpointRounding.AwayFromZero) * 1000m;
+            decimal? rowsTotal = deps.Count == 0 ? null : RoundedRowsTotal(deps.Sum(r => r.PriceAfterDepreciation));
+            decimal? totalValueAfterDepr = deps.Count == 0 ? null : deps[0].BuildingCostValue ?? rowsTotal;
+            // The building page prints the rows' own total, and the keyed figure beside it only when it differs
+            // (the same "Edited" test the valuation page applies to the group value).
+            decimal? costOverride = rowsTotal is { } computed
+                ? AppraisalSummaryLandBuildingDataProvider.BuildingOverride(deps[0].BuildingCostValue, computed)
+                : null;
 
             // Resolve coded structure/material columns (JSON arrays of codes) to Thai.
             string? wall = BuildWallText(
@@ -288,24 +412,58 @@ internal static class BuildingSectionLoader
                 })
                 .ToList();
 
+            // ส่วนพัฒนา = every non-building row; a property whose rows are ALL non-building is development-only
+            // (the same rule as the summary report and the brief — Shared.DDD.DevelopmentOnlyBuilding).
+            var devOnly = DevelopmentOnlyBuilding.IsDevelopmentOnly(deps.Select(r => r.IsBuilding));
+            var devItems = deps.Where(r => !r.IsBuilding)
+                .Select((r, i) => new DevelopmentItem
+                {
+                    AreaDescription = r.AreaDescription,
+                    BuildingTypeText = hdr.BuildingTypeText,
+                    Area = r.Area == 0 ? null : r.Area,
+                    AgeYears = r.AgeYears == 0 ? null : r.AgeYears,
+                    // The property's remark belongs to the property: print it once, on its first item.
+                    Remark = devOnly && i == 0 ? AppraisalSummaryCommonLoader.FirstNonBlank(hdr.Remark) : null,
+                    IsAppraisable = hdr.IsAppraisable,
+                    NotAppraisableReason = PlaceholderText.Stated(hdr.NotAppraisableReason),
+                })
+                .ToList();
+
             sections.Add(new BuildingSection
             {
+                IsDevelopmentOnly = devOnly,
+                DevelopmentItems = devItems,
                 GroupNumber = hdr.GroupNumber,
                 GroupName = hdr.GroupName,
+                PhotoSrc = photoByBuilding.GetValueOrDefault(hdr.BuildingDetailId),
                 HouseNumber = hdr.HouseNumber,
+                IsAppraisable = hdr.IsAppraisable,
+                NotAppraisableReason = PlaceholderText.Stated(hdr.NotAppraisableReason),
                 BuildingTypeText = hdr.BuildingTypeText,
                 NumberOfFloors = hdr.NumberOfFloors,
                 ModelName = hdr.ModelName,
                 BuildingName = hdr.BuildingName,
-                OwnerName = hdr.OwnerName,
+                OwnerName = hdr.OwnerName,   // the raw name; BuildingSection.OwnerText applies the not-verified wording once
+                IsOwnerVerified = hdr.IsOwnerVerified,
+                IsUnderConstruction = hdr.IsUnderConstruction,
+                ConstructionProgressPct = hdr.ConstructionProgressPct,
                 BuiltOnTitleNumber = hdr.BuiltOnTitleNumber,
                 LicenseSource = null,   // no source
-                LicenseNumber = null,   // no source
+                LicenseNumber = AppraisalSummaryCommonLoader.FirstNonBlank(hdr.LicenseNumber),
+                LicenseExpiration = hdr.LicenseExpiration,
+                InsurancePrice = hdr.InsurancePrice,
+                CostIsReference = hdr.CostIsReference,
+                CostApproachValue = hdr.CostApproachValue,
+                CostLandValue = hdr.CostLandValue,
+                CostMethodRemark = hdr.CostMethodRemark,
                 UsableArea = hdr.UsableArea,
-                SizeText = null,        // no source (no width/length columns)
+                SizeText = hdr.BuildingWidth is null && hdr.BuildingLength is null
+                    ? null
+                    : $"{FormatMetres(hdr.BuildingWidth)} x {FormatMetres(hdr.BuildingLength)}",
+                SpaceDivision = AppraisalSummaryCommonLoader.FirstNonBlank(hdr.SpaceDivision),
                 BuildingAge = hdr.BuildingAge,
                 BuildingCondition = hdr.BuildingCondition,
-                Maintenance = null,     // no source
+                Maintenance = ResolveCodes("BuildingMaintenance", hdr.MaintenanceType, hdr.MaintenanceTypeOther),
                 MaterialQuality = ResolveCodes("BuildingMaterial", hdr.MaterialQuality),
                 BuildingForm = ResolveCodes("BuildingStyle", hdr.BuildingForm),
                 Utilization = ResolveCodes("Utilization", hdr.UtilizationType, hdr.UtilizationTypeOther),
@@ -315,15 +473,18 @@ internal static class BuildingSectionLoader
                 Wall = wall,
                 Ceiling = ResolveCodes("Ceiling", hdr.CeilingType, hdr.CeilingTypeOther),
                 Painting = ResolveCodes("Decoration", hdr.DecorationType, hdr.DecorationTypeOther),
-                Door = null,            // no source
-                Window = null,          // no source
-                Sanitary = null,        // no source
+                Door = ResolveCodes("Door", hdr.DoorType, hdr.DoorTypeOther),
+                Window = ResolveCodes("Window", hdr.WindowType, hdr.WindowTypeOther),
+                Sanitary = ResolveCodes("Sanitary", hdr.SanitaryType, hdr.SanitaryTypeOther),
+                BuildingSystems = ResolveCodes("BuildingSystem", hdr.BuildingSystemType, hdr.BuildingSystemTypeOther),
                 Decoration = ResolveCodes("ConstructionType", hdr.ConstructionType, hdr.ConstructionTypeOther),
                 Floors = floors,
                 CostRows = costRows,
                 TotalArea = totalArea == 0 ? null : totalArea,
                 TotalPrice = totalPrice == 0 ? null : totalPrice,
                 TotalValueAfterDepreciation = totalValueAfterDepr == 0 ? null : totalValueAfterDepr,
+                CostRowsTotal = rowsTotal == 0 ? null : rowsTotal,
+                CostOverride = costOverride,
                 Remark = AppraisalSummaryCommonLoader.FirstNonBlank(hdr.Remark),
             });
         }
@@ -332,6 +493,30 @@ internal static class BuildingSectionLoader
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
+
+    /// <summary>The depreciated rows' sum rounded to the nearest 1,000 — the Building Cost Value the form computes when nothing is keyed.</summary>
+    internal static decimal RoundedRowsTotal(decimal sum) => Math.Round(sum / 1000m, MidpointRounding.AwayFromZero) * 1000m;
+
+    /// <summary>
+    /// ค่าเสื่อม ปีละ %. รายช่วง (Period) has one rate per year range → null here, the rates print in the period table
+    /// under the cost table. เหมารวม (Gross): the form leaves the DepreciationYearPct column 0 and keeps the rate on its
+    /// one BuildingDepreciationPeriods row (years 1..age) → the column when set, else that row's rate (0 included);
+    /// nothing stored anywhere → null.
+    /// </summary>
+    internal static decimal? PerYearPct(string? method, decimal storedYearPct, IReadOnlyList<DepreciationPeriodRow> periods) =>
+        string.Equals(method?.Trim(), "Period", StringComparison.OrdinalIgnoreCase) ? null
+        : storedYearPct != 0 ? storedYearPct
+        : periods.Count == 1 ? periods[0].DepreciationPerYear
+        : null;
+
+    /// <summary>The screen's labels (costBuilding.table.methodGross / methodPeriod).</summary>
+    internal static string? DepreciationMethodLabel(string? method) => method?.Trim() switch
+    {
+        "Gross" => "เหมารวม",
+        "Period" => "รายช่วง",
+        null or "" => null,
+        var other => other
+    };
 
     /// <summary>
     /// Parses a raw JSON array string (as stored by EF Core's nvarchar conversion) into a
@@ -357,6 +542,10 @@ internal static class BuildingSectionLoader
         }
     }
 
+    /// <summary>A width / length in metres, trimmed to 2 decimals; "-" when not entered.</summary>
+    private static string FormatMetres(decimal? v) =>
+        v is null ? "-" : v.Value.ToString("#,##0.##", System.Globalization.CultureInfo.InvariantCulture);
+
     /// <summary>
     /// Combines exterior and interior wall display strings into a single label.
     /// If both are present and differ, formats as "ภายนอก: X / ภายใน: Y".
@@ -377,17 +566,35 @@ internal static class BuildingSectionLoader
 
     // ── Private flat DTOs for Dapper mapping ─────────────────────────────────────
 
+    private sealed class PhotoRow
+    {
+        public Guid BuildingDetailId { get; init; }
+        public string? FilePath { get; init; }
+    }
+
     private sealed class BuildingHeaderRow
     {
+        public string? LicenseNumber { get; init; }
+        public DateTime? LicenseExpiration { get; init; }
+        public decimal? InsurancePrice { get; init; }
+        public string? CostMethodRemark { get; init; }
+        public bool CostIsReference { get; init; }
+        public decimal? CostApproachValue { get; init; }
+        public decimal? CostLandValue { get; init; }
         public Guid BuildingDetailId { get; init; }
         public int GroupNumber { get; init; }
         public string? GroupName { get; init; }
         public string? HouseNumber { get; init; }
+        public bool? IsAppraisable { get; init; }
+        public string? NotAppraisableReason { get; init; }
+        public bool? IsUnderConstruction { get; init; }
+        public decimal? ConstructionProgressPct { get; init; }
         public string? BuildingTypeText { get; init; }
         public decimal? NumberOfFloors { get; init; }
         public string? ModelName { get; init; }
         public string? BuildingName { get; init; }
         public string? OwnerName { get; init; }
+        public bool? IsOwnerVerified { get; init; }
         public string? BuiltOnTitleNumber { get; init; }
         public decimal? UsableArea { get; init; }
         public int? BuildingAge { get; init; }
@@ -414,11 +621,35 @@ internal static class BuildingSectionLoader
         public string? DecorationTypeOther { get; init; }
         public string? ConstructionType { get; init; }
         public string? ConstructionTypeOther { get; init; }
+        public decimal? BuildingWidth { get; init; }
+        public decimal? BuildingLength { get; init; }
+        public string? SpaceDivision { get; init; }
+        public string? MaintenanceType { get; init; }
+        public string? MaintenanceTypeOther { get; init; }
+        public string? DoorType { get; init; }
+        public string? DoorTypeOther { get; init; }
+        public string? WindowType { get; init; }
+        public string? WindowTypeOther { get; init; }
+        public string? SanitaryType { get; init; }
+        public string? SanitaryTypeOther { get; init; }
+        public string? BuildingSystemType { get; init; }
+        public string? BuildingSystemTypeOther { get; init; }
         public string? Remark { get; init; }
+    }
+
+    private sealed class PeriodRow
+    {
+        public Guid DetailId { get; init; }
+        public int AtYear { get; init; }
+        public int ToYear { get; init; }
+        public decimal DepreciationPerYear { get; init; }
     }
 
     private sealed class DepreciationRow
     {
+        public Guid DetailId { get; init; }
+        public string? DepreciationMethod { get; init; }
+        public decimal PricePerSqMAfterDepreciation { get; init; }
         public Guid BuildingAppraisalDetailId { get; init; }
         public string? AreaDescription { get; init; }
         public decimal Area { get; init; }
@@ -429,6 +660,7 @@ internal static class BuildingSectionLoader
         public decimal TotalDepreciationPct { get; init; }
         public decimal DepreciationAmount { get; init; }
         public decimal PriceAfterDepreciation { get; init; }
+        public bool IsBuilding { get; init; }
 
         /// <summary>
         /// The appraiser's keyed Building Cost Value for the owning property, repeated on every row

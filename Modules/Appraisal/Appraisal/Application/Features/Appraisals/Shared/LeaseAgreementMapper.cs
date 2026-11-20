@@ -29,7 +29,9 @@ public static class LeaseAgreementMapper
             detail.ContractRenewal,
             detail.RentalTermsImpactingPropertyUse,
             detail.TerminationOfLease,
-            detail.Remark
+            detail.Remark,
+            detail.IsLeaseRegistered,
+            detail.IsLeaseholdPledgeable
         );
     }
 

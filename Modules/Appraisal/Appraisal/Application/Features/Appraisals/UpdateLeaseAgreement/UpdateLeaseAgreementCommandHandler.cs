@@ -36,7 +36,9 @@ public class UpdateLeaseAgreementCommandHandler(
             contractRenewal: command.ContractRenewal,
             rentalTermsImpactingPropertyUse: command.RentalTermsImpactingPropertyUse,
             terminationOfLease: command.TerminationOfLease,
-            remark: command.Remark);
+            remark: command.Remark,
+            isLeaseRegistered: command.IsLeaseRegistered,
+            isLeaseholdPledgeable: command.IsLeaseholdPledgeable);
 
         return MediatR.Unit.Value;
     }
