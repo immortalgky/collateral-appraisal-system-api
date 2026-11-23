@@ -152,7 +152,12 @@ public class EvaluationEndpoints : ICarterModule
                         request.Criteria4Rating,
                         request.Criteria5Rating,
                         request.AdditionalComments,
-                        request.Note);
+                        request.Note,
+                        request.Criteria1Remark,
+                        request.Criteria2Remark,
+                        request.Criteria3Remark,
+                        request.Criteria4Remark,
+                        request.Criteria5Remark);
 
                     var result = await sender.Send(command, cancellationToken);
 
@@ -189,7 +194,12 @@ public class EvaluationEndpoints : ICarterModule
                         request.Criteria5Rating,
                         request.AdditionalComments,
                         request.Note,
-                        request.EvaluationStatus);
+                        request.EvaluationStatus,
+                        request.Criteria1Remark,
+                        request.Criteria2Remark,
+                        request.Criteria3Remark,
+                        request.Criteria4Remark,
+                        request.Criteria5Remark);
 
                     await sender.Send(command, cancellationToken);
 
@@ -222,7 +232,12 @@ public record CreateEvaluationRequest(
     int?     Criteria4Rating,
     int?     Criteria5Rating,
     string?  AdditionalComments,
-    string?  Note);
+    string?  Note,
+    string?  Criteria1Remark,
+    string?  Criteria2Remark,
+    string?  Criteria3Remark,
+    string?  Criteria4Remark,
+    string?  Criteria5Remark);
 
 public record UpdateEvaluationRequest(
     int?     Criteria1Rating,
@@ -234,4 +249,9 @@ public record UpdateEvaluationRequest(
     int?     Criteria5Rating,
     string?  AdditionalComments,
     string?  Note,
-    string   EvaluationStatus);
+    string   EvaluationStatus,
+    string?  Criteria1Remark,
+    string?  Criteria2Remark,
+    string?  Criteria3Remark,
+    string?  Criteria4Remark,
+    string?  Criteria5Remark);

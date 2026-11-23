@@ -8,5 +8,7 @@ namespace Reporting.Application.OperationalReports.Shared;
 /// against <c>parameter.Parameters</c> (comma-separated for multi-value filters); null => the value
 /// is already display-ready (dates, free text, already-resolved enums) and is shown verbatim.</item>
 /// </list>
+/// <see cref="LabelTh"/> optionally replaces <see cref="Label"/> on a Thai export.
 /// </summary>
-public sealed record FilterField(string Label, string? RawValue, string? ParameterGroup = null);
+public sealed record FilterField(
+    string Label, string? RawValue, string? ParameterGroup = null, string? LabelTh = null);

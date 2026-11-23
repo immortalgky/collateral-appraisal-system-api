@@ -16,7 +16,12 @@ public record CreateEvaluationCommand(
     int?     Criteria4Rating,
     int?     Criteria5Rating,
     string?  AdditionalComments,
-    string?  Note
+    string?  Note,
+    string?  Criteria1Remark,
+    string?  Criteria2Remark,
+    string?  Criteria3Remark,
+    string?  Criteria4Remark,
+    string?  Criteria5Remark
 ) : ICommand<CreateEvaluationResult>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public record CreateEvaluationResult(Guid Id);
@@ -73,7 +78,12 @@ public class CreateEvaluationCommandHandler(
             additionalComments:      command.AdditionalComments,
             note:                    command.Note,
             evaluatedAt:             dateTimeProvider.ApplicationNow,
-            totalScore:              totalScore);
+            totalScore:              totalScore,
+            criteria1Remark:         command.Criteria1Remark,
+            criteria2Remark:         command.Criteria2Remark,
+            criteria3Remark:         command.Criteria3Remark,
+            criteria4Remark:         command.Criteria4Remark,
+            criteria5Remark:         command.Criteria5Remark);
 
         db.AppraisalEvaluations.Add(evaluation);
 

@@ -22,4 +22,11 @@ public sealed record Rcas008Row(
     string? EvaluationStatus,
     string? InternalAppraisalStaff,
     string? PurposeCode,
-    string? AppraisalType);
+    string? AppraisalType,
+    string? RemarkReportQuality,
+    string? RemarkDeliveryTime,
+    string? RemarkPersonnel,
+    string? RemarkResponseTime,
+    string? RemarkCoordination,
+    string? BankingSegmentName,
+    string? Note);

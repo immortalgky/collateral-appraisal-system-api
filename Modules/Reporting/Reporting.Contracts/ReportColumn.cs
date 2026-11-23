@@ -13,8 +13,14 @@ namespace Reporting.Contracts;
 /// When true, the exporter renders a column total in a footer row (sum for numeric formats,
 /// a record count for the first <see cref="ColumnFormat.Text"/> total column).
 /// </param>
+/// <param name="HeaderTh">Optional Thai header, swapped in for <paramref name="Header"/> on a <c>lang=th</c> export.</param>
+/// <param name="FontColor">Optional <c>#rrggbb</c> colour for the data cells in Excel and PDF (CSV ignores it); anything else is ignored.</param>
+/// <param name="Center">Centers the header and cells (and total) in Excel and PDF; CSV has no alignment.</param>
 public sealed record ReportColumn<T>(
     string Header,
     Func<T, object?> Value,
     ColumnFormat Format = ColumnFormat.Text,
-    bool Total = false);
+    bool Total = false,
+    string? HeaderTh = null,
+    string? FontColor = null,
+    bool Center = false);
