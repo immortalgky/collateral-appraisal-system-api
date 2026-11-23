@@ -37,10 +37,10 @@ public sealed class Rcas008Endpoint : ICarterModule
                 [FromQuery] string? purpose, [FromQuery] string? appraisalType,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir,
                 [FromQuery] string? format, [FromQuery] string? lang,
-                IOperationalReportRunner runner, CancellationToken ct) =>
+                PdfLayoutQuery layout, IOperationalReportRunner runner, CancellationToken ct) =>
             {
                 var filter = new Rcas008Filter(approvedFrom, approvedTo, bankingSegment, appraisalCompany, evaluationStatus, appraisalNumber, purpose, appraisalType, sortBy, sortDir);
-                var file = await runner.ExportAsync(Rcas008Report.Definition, filter, OperationalReportFormat.Parse(format), ct,
+                var file = await runner.ExportAsync(Rcas008Report.Definition, filter, OperationalReportFormat.Parse(format), layout.Value, ct,
                     OperationalReportLanguage.Parse(lang));
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })

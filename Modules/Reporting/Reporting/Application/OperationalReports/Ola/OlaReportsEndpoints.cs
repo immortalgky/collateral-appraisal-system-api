@@ -68,12 +68,12 @@ public sealed class OlaReportsEndpoints : ICarterModule
                 [FromQuery] string? purpose, [FromQuery] string? aoCode,
                 [FromQuery] string? externalStaff, [FromQuery] string? departmentCode,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
-                IOperationalReportRunner runner, IOlaTimingService ola, CancellationToken ct) =>
+                PdfLayoutQuery layout, IOperationalReportRunner runner, IOlaTimingService ola, CancellationToken ct) =>
             {
                 var def = OlaReport.Create(baseName, title, scope, ola, fsdDetail, defaultSort, internalColumns);
                 var filter = new OlaFilter(createdFrom, createdTo, status, appraisalCompany, internalStaff, channel,
                     appraisalNumber, customerName, purpose, aoCode, externalStaff, departmentCode, sortBy, sortDir);
-                var file = await runner.ExportAsync(def, filter, OperationalReportFormat.Parse(format), ct);
+                var file = await runner.ExportAsync(def, filter, OperationalReportFormat.Parse(format), layout.Value, ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })
             .WithName($"Export{slug}").WithSummary($"{slug.ToUpperInvariant()} export (xlsx | csv | pdf)");

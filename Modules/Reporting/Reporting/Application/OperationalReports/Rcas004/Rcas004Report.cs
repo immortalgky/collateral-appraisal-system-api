@@ -35,7 +35,7 @@ internal static class Rcas004Report
         ],
         Columns =
         [
-            new("Appraisal No.", r => r.AppraisalNumber),
+            new("Appraisal No.", r => r.AppraisalNumber, Repeat: true),
             new("Customer Name", r => r.CustomerName),
             new("Purpose", r => r.Purpose),
             new("Apply/Limit Amount", r => r.ApplyLimitAmount, ColumnFormat.Money),

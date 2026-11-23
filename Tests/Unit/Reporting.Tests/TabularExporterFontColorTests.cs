@@ -127,7 +127,7 @@ public class TabularExporterFontColorTests
 
         await Exporter(pdf).ExportAsync(["A1", "A2"], TotalColumns(), "T-x", ReportFormat.Pdf);
 
-        html.Should().Contain("<tfoot><tr><td>Total (2)</td><td></td></tr></tfoot>")
-            .And.Contain("tfoot{display:table-row-group}"); // prints once at the end, not on every page
+        // The totals are the last body row (not a tfoot), so they print once at the end, not on every page.
+        html.Should().Contain("<tr class=\"total\"><td>Total (2)</td><td></td></tr>").And.NotContain("<tfoot");
     }
 }

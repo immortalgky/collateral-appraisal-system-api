@@ -52,9 +52,9 @@ internal static class Rcas001Report
         ],
         Columns =
         [
-            new("Running No.", r => r.RunningNo, ColumnFormat.Integer),
+            new("Running No.", r => r.RunningNo, ColumnFormat.Integer, Repeat: true),
             new("Created Date", r => r.AppraisalCreateDate, ColumnFormat.DateTime),
-            new("Appraisal No.", r => r.AppraisalNumber),
+            new("Appraisal No.", r => r.AppraisalNumber, Repeat: true),
             new("Customer Name", r => r.CustomerName),
             new("Purpose", r => r.AppraisalPurpose),
             new("Apply/Limit Amount", r => r.ApplyLimitAmount, ColumnFormat.Money, Total: true),
