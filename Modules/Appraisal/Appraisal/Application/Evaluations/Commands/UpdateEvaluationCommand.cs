@@ -16,7 +16,12 @@ public record UpdateEvaluationCommand(
     int?     Criteria5Rating,
     string?  AdditionalComments,
     string?  Note,
-    string   EvaluationStatus
+    string   EvaluationStatus,
+    string?  Criteria1Remark,
+    string?  Criteria2Remark,
+    string?  Criteria3Remark,
+    string?  Criteria4Remark,
+    string?  Criteria5Remark
 ) : ICommand<Unit>, ITransactionalCommand<IAppraisalUnitOfWork>;
 
 public class UpdateEvaluationCommandHandler(
@@ -59,7 +64,12 @@ public class UpdateEvaluationCommandHandler(
             evaluationStatus:        command.EvaluationStatus,
             evaluatedBy:             currentUser.Username,
             evaluatedAt:             dateTimeProvider.ApplicationNow,
-            totalScore:              totalScore);
+            totalScore:              totalScore,
+            criteria1Remark:         command.Criteria1Remark,
+            criteria2Remark:         command.Criteria2Remark,
+            criteria3Remark:         command.Criteria3Remark,
+            criteria4Remark:         command.Criteria4Remark,
+            criteria5Remark:         command.Criteria5Remark);
 
         await db.SaveChangesAsync(cancellationToken);
 

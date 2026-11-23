@@ -21,7 +21,7 @@ public interface IOperationalReportRunner
 
     Task<ReportFile> ExportAsync<TRow, TFilter>(
         ReportDefinition<TRow, TFilter> definition, TFilter filter, ReportFormat format,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, ReportLanguage language = ReportLanguage.En);
 }
 
 internal sealed class OperationalReportRunner(
@@ -57,7 +57,7 @@ internal sealed class OperationalReportRunner(
 
     public async Task<ReportFile> ExportAsync<TRow, TFilter>(
         ReportDefinition<TRow, TFilter> definition, TFilter filter, ReportFormat format,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ReportLanguage language = ReportLanguage.En)
     {
         var generatedAt = dateTimeProvider.ApplicationNow;
         var stopwatch = Stopwatch.StartNew();
@@ -85,14 +85,15 @@ internal sealed class OperationalReportRunner(
             // Resolve the applied-filter block (null => report declares no describer => no block).
             IReadOnlyList<FilterCriterion>? appliedFilters = definition.DescribeFilter is null
                 ? null
-                : await filterResolver.ResolveAsync(definition.DescribeFilter(filter), cancellationToken);
+                : await filterResolver.ResolveAsync(
+                    language.Labels(definition.DescribeFilter(filter)), cancellationToken, language);
 
             var signoffs = definition.IncludeSignoffFooter
                 ? await BuildSignoffsAsync(cancellationToken)
                 : null;
 
             file = await exporter.ExportAsync(
-                rows, definition.Columns, definition.BaseName, format, definition.Title,
+                rows, language.Headers(definition.Columns), definition.BaseName, format, definition.Title,
                 appliedFilters, signoffs, cancellationToken);
             return file;
         }

@@ -73,6 +73,13 @@ public class AppraisalEvaluationConfiguration : IEntityTypeConfiguration<Apprais
         builder.Property(e => e.Criteria5Rating)
             .HasColumnName("Criteria5Rating");
 
+        // ── Remark per criterion ────────────────────────────────────────────
+        builder.Property(e => e.Criteria1Remark).HasMaxLength(AppraisalEvaluation.MaxRemarkLength).HasColumnName("Criteria1Remark");
+        builder.Property(e => e.Criteria2Remark).HasMaxLength(AppraisalEvaluation.MaxRemarkLength).HasColumnName("Criteria2Remark");
+        builder.Property(e => e.Criteria3Remark).HasMaxLength(AppraisalEvaluation.MaxRemarkLength).HasColumnName("Criteria3Remark");
+        builder.Property(e => e.Criteria4Remark).HasMaxLength(AppraisalEvaluation.MaxRemarkLength).HasColumnName("Criteria4Remark");
+        builder.Property(e => e.Criteria5Remark).HasMaxLength(AppraisalEvaluation.MaxRemarkLength).HasColumnName("Criteria5Remark");
+
         // ── Free text ───────────────────────────────────────────────────────
         builder.Property(e => e.AdditionalComments)
             .HasColumnType("nvarchar(max)")

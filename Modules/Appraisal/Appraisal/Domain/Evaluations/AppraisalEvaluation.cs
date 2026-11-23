@@ -37,6 +37,14 @@ public class AppraisalEvaluation : Entity<Guid>
     // ── Criterion 5: Coordination & responsibility (weight 0.10) ───────────
     public int? Criteria5Rating { get; private set; }
 
+    // ── Optional remark per criterion (max 500 chars each) ──────────────────
+    public const int MaxRemarkLength = 500;
+    public string? Criteria1Remark { get; private set; }
+    public string? Criteria2Remark { get; private set; }
+    public string? Criteria3Remark { get; private set; }
+    public string? Criteria4Remark { get; private set; }
+    public string? Criteria5Remark { get; private set; }
+
     // ── Free text ───────────────────────────────────────────────────────────
     public string? AdditionalComments { get; private set; }
     public string? Note { get; private set; }
@@ -77,10 +85,18 @@ public class AppraisalEvaluation : Entity<Guid>
         int? criteria5Rating,
         string? additionalComments,
         string? note,
+        string? criteria1Remark,
+        string? criteria2Remark,
+        string? criteria3Remark,
+        string? criteria4Remark,
+        string? criteria5Remark,
         DateTime evaluatedAt,
         decimal? totalScore = null)
     {
         ValidateStatus(evaluationStatus);
+        (criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark) =
+            NormalizeRemarks(criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark);
+        ValidateRemarks(criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark);
         ValidateRatings(
             criteria1Rating, criteria2Rating,
             criteria3Rating, criteria4Rating, criteria5Rating);
@@ -103,6 +119,11 @@ public class AppraisalEvaluation : Entity<Guid>
             Criteria3Rating = criteria3Rating,
             Criteria4Rating = criteria4Rating,
             Criteria5Rating = criteria5Rating,
+            Criteria1Remark = criteria1Remark,
+            Criteria2Remark = criteria2Remark,
+            Criteria3Remark = criteria3Remark,
+            Criteria4Remark = criteria4Remark,
+            Criteria5Remark = criteria5Remark,
             AdditionalComments = additionalComments,
             Note = note
         };
@@ -133,6 +154,11 @@ public class AppraisalEvaluation : Entity<Guid>
         int? criteria5Rating,
         string? additionalComments,
         string? note,
+        string? criteria1Remark,
+        string? criteria2Remark,
+        string? criteria3Remark,
+        string? criteria4Remark,
+        string? criteria5Remark,
         string evaluationStatus,
         string? evaluatedBy,
         DateTime evaluatedAt,
@@ -140,6 +166,10 @@ public class AppraisalEvaluation : Entity<Guid>
     {
         if (EvaluationStatus == "Completed")
             throw new InvalidOperationException("A completed evaluation cannot be modified.");
+
+        (criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark) =
+            NormalizeRemarks(criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark);
+        ValidateRemarks(criteria1Remark, criteria2Remark, criteria3Remark, criteria4Remark, criteria5Remark);
 
         ValidateRatings(
             criteria1Rating, criteria2Rating,
@@ -157,6 +187,11 @@ public class AppraisalEvaluation : Entity<Guid>
         Criteria3Rating = criteria3Rating;
         Criteria4Rating = criteria4Rating;
         Criteria5Rating = criteria5Rating;
+        Criteria1Remark = criteria1Remark;
+        Criteria2Remark = criteria2Remark;
+        Criteria3Remark = criteria3Remark;
+        Criteria4Remark = criteria4Remark;
+        Criteria5Remark = criteria5Remark;
         AdditionalComments = additionalComments;
         Note = note;
         ValidateStatus(evaluationStatus);
@@ -222,6 +257,22 @@ public class AppraisalEvaluation : Entity<Guid>
         Check(c3, 3);
         Check(c4, 4);
         Check(c5, 5);
+    }
+
+    private static (string?, string?, string?, string?, string?) NormalizeRemarks(
+        string? r1, string? r2, string? r3, string? r4, string? r5)
+    {
+        static string? N(string? r) => string.IsNullOrWhiteSpace(r) ? null : r.Trim();
+        return (N(r1), N(r2), N(r3), N(r4), N(r5));
+    }
+
+    private static void ValidateRemarks(params string?[] remarks)
+    {
+        for (var i = 0; i < remarks.Length; i++)
+            if (remarks[i]?.Length > MaxRemarkLength)
+                throw new ArgumentException(
+                    $"Remark for criterion {i + 1} must be at most {MaxRemarkLength} characters.",
+                    $"criteria{i + 1}Remark");
     }
 
     private static void ValidateAllRatingsSelected(

@@ -4772,6 +4772,11 @@ namespace Appraisal.infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("Criteria1Rating");
 
+                    b.Property<string>("Criteria1Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria1Remark");
+
                     b.Property<decimal?>("Criteria2DetectedDays")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)")
@@ -4787,17 +4792,37 @@ namespace Appraisal.infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("Criteria2Rating");
 
+                    b.Property<string>("Criteria2Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria2Remark");
+
                     b.Property<int?>("Criteria3Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria3Rating");
+
+                    b.Property<string>("Criteria3Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria3Remark");
 
                     b.Property<int?>("Criteria4Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria4Rating");
 
+                    b.Property<string>("Criteria4Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria4Remark");
+
                     b.Property<int?>("Criteria5Rating")
                         .HasColumnType("int")
                         .HasColumnName("Criteria5Rating");
+
+                    b.Property<string>("Criteria5Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("Criteria5Remark");
 
                     b.Property<DateTime?>("EvaluatedAt")
                         .HasColumnType("datetime2")

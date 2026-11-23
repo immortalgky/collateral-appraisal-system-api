@@ -104,3 +104,37 @@ public class ReportFilterResolverTests
         result.Select(c => c.Value).Should().ContainInOrder("Retail", "Full Payment");
     }
 }
+
+public class ReportFilterDescriptionMapTests
+{
+    private static ReportFilterResolver.ParameterRow Row(string lang, string desc) => new("G", "1", desc, lang);
+
+    private static string? Pick(ReportLanguage language, params ReportFilterResolver.ParameterRow[] rows) =>
+        ReportFilterResolver.BuildDescriptionMap(rows, language).GetValueOrDefault(("G", "1"));
+
+    [Fact]
+    public void En_only_row_serves_both_languages()
+    {
+        Pick(ReportLanguage.En, Row("EN", "Retail")).Should().Be("Retail");
+        Pick(ReportLanguage.Th, Row("EN", "Retail")).Should().Be("Retail");
+    }
+
+    [Fact]
+    public void Th_only_row_is_used_for_Thai_but_not_English()
+    {
+        Pick(ReportLanguage.En, Row("TH", "ขายปลีก")).Should().BeNull();
+        Pick(ReportLanguage.Th, Row("TH", "ขายปลีก")).Should().Be("ขายปลีก");
+    }
+
+    [Fact]
+    public void Both_rows_present_requested_language_wins_in_any_row_order()
+    {
+        Pick(ReportLanguage.Th, Row("EN", "Retail"), Row("TH", "ขายปลีก")).Should().Be("ขายปลีก");
+        Pick(ReportLanguage.Th, Row("TH", "ขายปลีก"), Row("EN", "Retail")).Should().Be("ขายปลีก");
+        Pick(ReportLanguage.En, Row("TH", "ขายปลีก"), Row("EN", "Retail")).Should().Be("Retail");
+    }
+
+    [Fact]
+    public void Lower_case_language_value_still_matches() =>
+        Pick(ReportLanguage.Th, Row("EN", "Retail"), Row("th", "ขายปลีก")).Should().Be("ขายปลีก");
+}

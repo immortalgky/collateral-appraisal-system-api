@@ -12,16 +12,15 @@ namespace Reporting.Application.OperationalReports.Shared;
 public interface IReportFilterResolver
 {
     Task<IReadOnlyList<FilterCriterion>> ResolveAsync(
-        IReadOnlyList<FilterField> fields, CancellationToken cancellationToken = default);
+        IReadOnlyList<FilterField> fields, CancellationToken cancellationToken = default,
+        ReportLanguage language = ReportLanguage.En);
 }
 
 internal sealed class ReportFilterResolver(ISqlConnectionFactory connectionFactory) : IReportFilterResolver
 {
-    // Match the EN code->description resolution the RCAS views already use.
-    private const string Language = "EN";
-
     public async Task<IReadOnlyList<FilterCriterion>> ResolveAsync(
-        IReadOnlyList<FilterField> fields, CancellationToken cancellationToken = default)
+        IReadOnlyList<FilterField> fields, CancellationToken cancellationToken = default,
+        ReportLanguage language = ReportLanguage.En)
     {
         // Keep only applied filters (a non-blank value was supplied).
         var applied = fields.Where(f => !string.IsNullOrWhiteSpace(f.RawValue)).ToList();
@@ -34,7 +33,7 @@ internal sealed class ReportFilterResolver(ISqlConnectionFactory connectionFacto
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var descriptions = await LoadDescriptionsAsync(groups);
+        var descriptions = await LoadDescriptionsAsync(groups, language);
         return BuildCriteria(fields, descriptions);
     }
 
@@ -61,23 +60,44 @@ internal sealed class ReportFilterResolver(ISqlConnectionFactory connectionFacto
     }
 
     private async Task<Dictionary<(string Group, string Code), string>> LoadDescriptionsAsync(
-        IReadOnlyCollection<string> groups)
+        IReadOnlyCollection<string> groups, ReportLanguage language)
     {
         if (groups.Count == 0) return new Dictionary<(string, string), string>(KeyComparer);
 
+        // English loads EN rows only (as before Thai support); Thai also loads TH rows so they can win.
+        string[] langs = language == ReportLanguage.Th ? ["EN", "TH"] : ["EN"];
         var rows = await connectionFactory.QueryAsync<ParameterRow>(
             """
-            SELECT [Group], Code, Description
+            SELECT [Group], Code, Description, [Language]
             FROM parameter.Parameters
-            WHERE [Language] = @Language AND [Group] IN @Groups
+            WHERE [Language] IN @Langs AND [Group] IN @Groups
             """,
-            new { Language, Groups = groups });
+            new { Langs = langs, Groups = groups });
+
+        return BuildDescriptionMap(rows, language);
+    }
+
+    /// <summary>
+    /// Pure (no DB): rows -> (Group, Code) -> description. The requested language wins, EN is the
+    /// fallback for Thai requests, and an English request ignores non-EN rows so a code with only a
+    /// TH row stays unresolved (the raw code is shown). Language is compared case-insensitively.
+    /// </summary>
+    internal static Dictionary<(string Group, string Code), string> BuildDescriptionMap(
+        IEnumerable<ParameterRow> rows, ReportLanguage language)
+    {
+        var wanted = language == ReportLanguage.Th ? "TH" : "EN";
 
         // Case-insensitive keys: SQL Server matches Code/Group under a CI collation and the report's
         // data filter is CI too, so a different-cased filter value must still resolve here (not fall
-        // back to the raw code). Last write wins on a casing-only Code collision.
+        // back to the raw code). Last write wins on a casing-only Code collision; the requested
+        // language is written last so it overrides EN.
         var map = new Dictionary<(string, string), string>(KeyComparer);
-        foreach (var row in rows)
+        var usable = rows
+            .Select(r => (Row: r, Lang: r.Language.Trim()))
+            .Where(x => string.Equals(x.Lang, "EN", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Lang, wanted, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => string.Equals(x.Lang, wanted, StringComparison.OrdinalIgnoreCase));
+        foreach (var (row, _) in usable)
             map[(row.Group, row.Code)] = row.Description;
         return map;
     }
@@ -110,5 +130,5 @@ internal sealed class ReportFilterResolver(ISqlConnectionFactory connectionFacto
         return string.Join(", ", labels);
     }
 
-    private sealed record ParameterRow(string Group, string Code, string Description);
+    internal sealed record ParameterRow(string Group, string Code, string Description, string Language);
 }

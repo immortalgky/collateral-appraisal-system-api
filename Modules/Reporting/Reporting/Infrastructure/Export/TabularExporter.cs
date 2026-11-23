@@ -122,7 +122,10 @@ internal sealed class TabularExporter(
         foreach (var row in rows)
         {
             for (var c = 0; c < columns.Count; c++)
+            {
                 SetExcelCell(ws.Cell(r, c + 1), columns[c].Value(row), columns[c].Format);
+                if (SafeColor(columns[c].FontColor) is { } color) ws.Cell(r, c + 1).Style.Font.FontColor = XLColor.FromHtml(color);
+            }
             r++;
         }
 
@@ -141,6 +144,11 @@ internal sealed class TabularExporter(
             ws.Row(r).Style.Font.Bold = true;
             r++;
         }
+
+        // Top-align so a tall (wrapped) row doesn't bottom-align its other cells.
+        ws.Range(headerRow, 1, r - 1, span).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        for (var c = 0; c < columns.Count; c++)
+            if (columns[c].Center) ws.Range(headerRow, c + 1, r - 1, c + 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
         // Sign-off footer, below the table with a spacer row. A null value leaves an underlined
         // blank cell to be signed by hand.
@@ -196,7 +204,8 @@ internal sealed class TabularExporter(
                 cell.Style.NumberFormat.Format = "yyyy-mm-dd hh:mm";
                 break;
             default:
-                cell.Value = Convert.ToString(value, Inv) ?? "";
+                var text = Convert.ToString(value, Inv) ?? "";
+                cell.Value = text.Length > 32767 ? text[..32767] : text; // Excel's per-cell limit; a long nvarchar(max) must not 500 the export
                 break;
         }
     }
@@ -270,6 +279,7 @@ internal sealed class TabularExporter(
             tr:nth-child(even) td{background:#f6f6f6}
             td.num{text-align:right}
             tfoot td{font-weight:bold;background:#e9e9e9}
+            tfoot{display:table-row-group}
             .signoff{margin-top:24px;page-break-inside:avoid}
             .signoff div{display:inline-block;margin-right:48px;vertical-align:bottom}
             .signoff strong{display:block;margin-bottom:4px}
@@ -291,7 +301,7 @@ internal sealed class TabularExporter(
 
         sb.Append("<table><thead><tr>");
         foreach (var col in columns)
-            sb.Append("<th>").Append(HtmlEnc(col.Header)).Append("</th>");
+            sb.Append("<th").Append(CellStyle(col, false)).Append('>').Append(HtmlEnc(col.Header)).Append("</th>");
         sb.Append("</tr></thead><tbody>");
 
         foreach (var row in rows)
@@ -300,7 +310,7 @@ internal sealed class TabularExporter(
             foreach (var col in columns)
             {
                 var cls = IsNumeric(col.Format) ? " class=\"num\"" : "";
-                sb.Append("<td").Append(cls).Append('>')
+                sb.Append("<td").Append(cls).Append(CellStyle(col, true)).Append('>')
                     .Append(HtmlEnc(FormatText(col.Value(row), col.Format)))
                     .Append("</td>");
             }
@@ -315,7 +325,7 @@ internal sealed class TabularExporter(
             {
                 var col = columns[c];
                 if (col.Total && IsNumeric(col.Format))
-                    sb.Append("<td class=\"num\">")
+                    sb.Append("<td class=\"num\"").Append(CellStyle(col, false)).Append('>')
                         .Append(HtmlEnc(FormatText(rows.Sum(row => ToDouble(col.Value(row)) ?? 0), col.Format)))
                         .Append("</td>");
                 else if (c == 0)
@@ -341,6 +351,21 @@ internal sealed class TabularExporter(
 
         sb.Append("</body></html>");
         return sb.ToString();
+    }
+
+    // Only a strict #rrggbb reaches the workbook / inline style; anything else is ignored.
+    private static readonly System.Text.RegularExpressions.Regex HexColor = new(
+        @"^#[0-9a-fA-F]{6}\z", System.Text.RegularExpressions.RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+
+    private static string? SafeColor(string? c) => c is not null && HexColor.IsMatch(c) ? c : null;
+
+    // One inline style attribute per cell: optional font colour (data cells) + centering.
+    private static string CellStyle<T>(ReportColumn<T> col, bool withColor)
+    {
+        var parts = new List<string>();
+        if (withColor && SafeColor(col.FontColor) is { } color) parts.Add($"color:{color}");
+        if (col.Center) parts.Add("text-align:center");
+        return parts.Count == 0 ? "" : $" style=\"{string.Join(';', parts)}\"";
     }
 
     private static string HtmlEnc(string value) => WebUtility.HtmlEncode(value);
