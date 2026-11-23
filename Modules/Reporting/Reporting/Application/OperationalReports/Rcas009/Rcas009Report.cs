@@ -43,7 +43,7 @@ internal static class Rcas009Report
         // not near the front. Fee Status stays a filter but is not displayed (not in the FSD).
         Columns =
         [
-            new("Appraisal No.", r => r.AppraisalNumber),
+            new("Appraisal No.", r => r.AppraisalNumber, Repeat: true),
             new("Customer Name", r => r.CustomerName),
             new("Assign Type", r => r.AssignType),
             new("Pay Type", r => r.PayType),

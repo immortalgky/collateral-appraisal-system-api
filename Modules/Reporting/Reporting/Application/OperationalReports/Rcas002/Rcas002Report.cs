@@ -67,7 +67,7 @@ internal static class Rcas002Report
         [
             new("Review Type", r => r.ReviewType),
             new("Stage", r => r.Stage),
-            new("Appraisal No.", r => r.AppraisalNumber),
+            new("Appraisal No.", r => r.AppraisalNumber, Repeat: true),
             new("Previous Appraisal No.", r => r.PreviousAppraisalNumber),
             new("Collateral No.", r => r.CollateralNumber),
             new("CIF Number", r => r.CifNumber),

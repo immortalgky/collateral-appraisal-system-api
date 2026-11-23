@@ -50,7 +50,7 @@ internal static class Rcas008Report
         ],
         Columns =
         [
-            new("Appraisal No.", r => r.AppraisalNumber, HeaderTh: "หมายเลขเล่มประเมิน", FontColor: "#0d9488", Total: true),
+            new("Appraisal No.", r => r.AppraisalNumber, HeaderTh: "หมายเลขเล่มประเมิน", FontColor: "#0d9488", Total: true, Repeat: true),
             new("Appraisal Company", r => r.AppraisalCompany, HeaderTh: "บริษัทประเมิน"),
             new("Internal Staff", r => r.InternalAppraisalStaff, HeaderTh: "ผู้ประเมินภายใน"),
             new("Approved Date", r => r.ApprovedDate, ColumnFormat.Date, HeaderTh: "วันที่อนุมัติ", Center: true),

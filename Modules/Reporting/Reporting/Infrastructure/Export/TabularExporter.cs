@@ -27,6 +27,7 @@ internal sealed class TabularExporter(
         string? title = null,
         IReadOnlyList<FilterCriterion>? appliedFilters = null,
         IReadOnlyList<ReportSignoff>? signoffs = null,
+        PdfLayout? pdfLayout = null,
         CancellationToken cancellationToken = default)
     {
         var timestamp = dateTimeProvider.ApplicationNow.ToString("yyyyMMdd-HHmmss", Inv);
@@ -39,7 +40,7 @@ internal sealed class TabularExporter(
                 $"{baseName}-{timestamp}.csv"),
 
             ReportFormat.Pdf => new ReportFile(
-                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title, appliedFilters, signoffs), cancellationToken),
+                await pdfRenderer.RenderAsync(BuildHtml(rows, columns, title, appliedFilters, signoffs, pdfLayout), cancellationToken),
                 "application/pdf",
                 $"{baseName}-{timestamp}.pdf"),
 
@@ -262,24 +263,213 @@ internal sealed class TabularExporter(
 
     // ---------- PDF (HTML table → Puppeteer) ----------
 
-    private static string BuildHtml<T>(
-        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
-        IReadOnlyList<FilterCriterion>? appliedFilters, IReadOnlyList<ReportSignoff>? signoffs)
+    // A4 in CSS px (96 dpi) minus the renderer's 15mm margins on each side.
+    private const double PxPerMm = 96 / 25.4;
+    private const double PrintableLandscapePx = (297 - 30) * PxPerMm;
+    private const double PrintablePortraitPx = (210 - 30) * PxPerMm;
+
+    // ponytail: widths are estimates (chars x average glyph width), not measured text. An under-estimate
+    // wraps a Text cell (fixed layout + overflow-wrap) or lets a nowrap cell overflow slightly; it never clips. Measure in the browser if it matters.
+    private const int NaturalMaxChars = 32; // longer text wraps instead of widening its column
+    private const double CellPaddingPx = 12; // cell padding (5+5) + borders, rounded
+    private const int TextFloorChars = 3; // a Text column is never squeezed below this many chars
+    // ponytail: Thai has no spaces, so a whole sentence is one "token" here although the browser breaks it by
+    // dictionary. A Text cell token, or a Thai header word, counts at most this many chars toward min width; a
+    // long Latin cell word may then break mid-word (Latin header words, up to ~29 chars while the mins fit, and nowrap values do not).
+    private const int TextTokenCapChars = 16;
+    private static readonly char[] Spaces = [' ', '\t', '\n', '\r']; // not NBSP / U+202F: those glue words together
+
+    // Display length: combining marks (Thai vowels above/below, tone marks) take no horizontal space.
+    private static int DisplayLength(string text) =>
+        text.Count(ch => CharUnicodeInfo.GetUnicodeCategory(ch) is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark));
+
+    private static int LongestToken(string text) =>
+        text.Split(Spaces, StringSplitOptions.RemoveEmptyEntries).Select(DisplayLength).DefaultIfEmpty(0).Max();
+
+    // What a column must hold: longest text and longest unbreakable token (numbers, dates, ids are one
+    // token), in display chars. Font-independent, so Fit can retry smaller fonts without re-scanning rows.
+    // Nowrap = a non-Text or Repeat (identifier) column: td is white-space:nowrap, so its min is its whole value.
+    private readonly record struct TextStat(int Longest, int Token, bool Nowrap = false, int Cell = 0, bool Ident = false)
     {
+        // Cell = longest value itself (not header/label): what a Text column may "want" beyond the natural cap.
+        public static TextStat Of(IEnumerable<string> texts) =>
+            texts.Aggregate(default(TextStat), (m, t) =>
+            {
+                var len = DisplayLength(t);
+                return new(Math.Max(m.Longest, len), Math.Max(m.Token, LongestToken(t)), false, Math.Max(m.Cell, len));
+            });
+
+        // A header (th) wraps at word boundaries, so it only needs its longest word, bold (1.1x). Only a Thai word
+        // is capped at TextTokenCapChars (no spaces in Thai); a Latin word keeps its full length so it never breaks
+        // mid-word. Never the whole header; not a cell value, so Cell stays 0.
+        public static TextStat OfHeader(string header)
+        {
+            var word = header.Split(Spaces, StringSplitOptions.RemoveEmptyEntries).Select(w =>
+            {
+                var bold = (int)Math.Ceiling(DisplayLength(w) * 1.1);
+                return w.Any(ch => ch is >= '\u0E00' and <= '\u0E7F') ? Math.Min(bold, TextTokenCapChars) : bold;
+            }).DefaultIfEmpty(0).Max();
+            return new(word, word);
+        }
+
+        // Text cell values: a long unbroken token (Thai sentence) counts at most TextTokenCapChars toward min.
+        public TextStat CapToken() => this with { Token = Math.Min(Token, TextTokenCapChars) };
+
+        // Headers (th) and the "Total (n)" label are bold, ~10% wider than regular text; not cell values.
+        public TextStat Bold() => new((int)Math.Ceiling(Longest * 1.1), (int)Math.Ceiling(Token * 1.1), Nowrap);
+
+        // Non-Text or Repeat (identifier) column: the longest value is one unbreakable token (header words may still wrap). The
+        // bold totals value is widened 10% so a nowrap cell does not spill. Display chars.
+        public static TextStat OfNowrap(IEnumerable<string> values, string? total, string header, bool ident)
+        {
+            var head = OfHeader(header);
+            var token = Math.Max(Of(values).Longest, head.Token);
+            if (total is not null) token = Math.Max(token, (int)Math.Ceiling(DisplayLength(total) * 1.1));
+            return new(token, token, true, 0, ident);
+        }
+
+        public TextStat Max(TextStat o) =>
+            new(Math.Max(Longest, o.Longest), Math.Max(Token, o.Token), Nowrap || o.Nowrap, Math.Max(Cell, o.Cell), Ident || o.Ident);
+
+        // (min, natural) in px: natural = longest text capped at NaturalMaxChars (beyond that the cell wraps);
+        // min = longest token, never above natural.
+        public (double Min, double Natural, bool Nowrap, double Floor, double Want, bool Ident) Width(double fontSizePx)
+        {
+            var charW = fontSizePx * 0.6; // avg glyph (Latin + Thai)
+            var natural = Math.Min(Longest, NaturalMaxChars) * charW + CellPaddingPx;
+            var min = Token * charW + CellPaddingPx;
+            // A nowrap column is never narrower than its value, even above NaturalMaxChars.
+            if (Nowrap) natural = Math.Max(natural, min); else min = Math.Min(min, natural);
+            // Want: only a Text column with content beyond the natural cap may take leftover page space.
+            var want = Nowrap ? 0 : Math.Max(0, Cell - NaturalMaxChars) * charW;
+            return (min, natural, Nowrap, Nowrap ? min : Math.Min(min, TextFloorChars * charW + CellPaddingPx), want, Ident);
+        }
+    }
+
+    // Column widths for one table: everyone gets their min. Spare room then goes, in order, to: Text columns up
+    // to their natural width; Text columns whose content is longer than the natural cap (up to that excess);
+    // all Text columns in proportion to natural width, so the table reaches the page edge. Nowrap columns (numbers,
+    // dates, identifiers) stay at their min, unless the set has no Text column: then numbers/dates (ids only if
+    // nothing else) share the leftover so the table still fills the page.
+    // Returns whether the table is in "nowrap mode".
+    // If the mins overflow, only Text columns shrink, down to their floor.
+    // ponytail: if the nowrap mins plus the Text floors still exceed the page, Text keeps its floor, the nowrap mins are scaled into the rest and
+    // nowrap is dropped (numbers may then wrap rather than overlap their neighbour; everything is scaled
+    // only if the floors alone do not fit); Split is the real fix for such reports.
+    private static (double[] Widths, bool Nowrap) AllocateWidths(
+        IReadOnlyList<(double Min, double Natural, bool Nowrap, double Floor, double Want, bool Ident)> cols, double printablePx)
+    {
+        var sumMin = cols.Sum(c => c.Min);
+        var rigid = cols.Where(c => c.Nowrap).Sum(c => c.Min);
+        var floors = cols.Where(c => !c.Nowrap).Sum(c => c.Floor);
+        if (rigid + floors > printablePx)
+            return (floors < printablePx
+                ? cols.Select(c => c.Nowrap ? c.Min * (printablePx - floors) / rigid : c.Floor).ToArray() // Text keeps its floor
+                : cols.Select(c => c.Min * printablePx / sumMin).ToArray(), false);
+
+        if (sumMin >= printablePx)
+        {
+            var room = printablePx - rigid - floors;
+            var excess = sumMin - rigid - floors; // sum of (Min - Floor) over Text columns
+            return (cols.Select(c => c.Nowrap ? c.Min : c.Floor + (excess > 0 ? room * (c.Min - c.Floor) / excess : 0)).ToArray(), true);
+        }
+
+        // Spare room fills Text columns up to their natural width; nowrap columns stay at their min.
+        var textSpare = cols.Where(c => !c.Nowrap).Sum(c => c.Natural - c.Min);
+        var textExtra = Math.Min(printablePx - sumMin, textSpare);
+        var widths = cols.Select(c => c.Nowrap || textSpare <= 0 ? c.Min : c.Min + textExtra * (c.Natural - c.Min) / textSpare).ToArray();
+        var leftover = printablePx - widths.Sum();
+        var want = cols.Sum(c => c.Want);
+        if (leftover > 0 && want > 0)
+        {
+            var give = Math.Min(leftover, want);
+            widths = widths.Select((w, i) => w + give * cols[i].Want / want).ToArray();
+        }
+
+        // Whatever is still left fills the page: Text columns first, in proportion to their natural width; with no
+        // Text column, numbers/dates; with neither, the identifier columns.
+        leftover = printablePx - widths.Sum();
+        var textNatural = cols.Where(c => !c.Nowrap).Sum(c => c.Natural);
+        if (leftover > 0 && textNatural > 0)
+            widths = widths.Select((w, i) => cols[i].Nowrap ? w : w + leftover * cols[i].Natural / textNatural).ToArray();
+        else if (leftover > 0)
+        {
+            // No Text column in the set: numbers/dates share it (identifiers only when nothing else is there).
+            var grow = cols.Select(c => c.Nowrap && !c.Ident).ToArray();
+            if (!grow.Contains(true)) grow = cols.Select(c => true).ToArray();
+            var growNatural = cols.Where((c, i) => grow[i]).Sum(c => c.Natural);
+            widths = widths.Select((w, i) => grow[i] ? w + leftover * cols[i].Natural / growNatural : w).ToArray();
+        }
+
+        return (widths, true);
+    }
+
+    internal static string BuildHtml<T>(
+        IReadOnlyList<T> rows, IReadOnlyList<ReportColumn<T>> columns, string? title,
+        IReadOnlyList<FilterCriterion>? appliedFilters, IReadOnlyList<ReportSignoff>? signoffs,
+        PdfLayout? layout = null)
+    {
+        layout ??= PdfLayout.Default;
+        var fs = Math.Clamp(layout.FontSizePx, PdfLayout.MinFontSizePx, PdfLayout.MaxFontSizePx);
+        var printablePx = layout.Landscape ? PrintableLandscapePx : PrintablePortraitPx;
+
+        // Cell text and column totals are formatted once; they feed both the width estimate and the table.
+        var cells = rows.Select(row => columns.Select(col => FormatText(col.Value(row), col.Format)).ToArray()).ToList();
+        var totals = columns
+            .Select(col => rows.Count > 0 && col.Total && IsNumeric(col.Format)
+                ? FormatText(rows.Sum(row => ToDouble(col.Value(row)) ?? 0), col.Format)
+                : null)
+            .ToArray();
+        var stats = columns
+            .Select((col, c) => IsNowrap(col)
+                ? TextStat.OfNowrap(cells.Select(r => r[c]), totals[c], col.Header, col.Repeat)
+                : TextStat.Of(cells.Select(r => r[c])).CapToken().Max(TextStat.OfHeader(col.Header)))
+            .ToArray();
+        var totalLabel = $"Total ({rows.Count})";
+        var labelStat = TextStat.Of([totalLabel]).Bold();
+
+        // The "Total (n)" label sits in a set's first cell unless that cell carries a numeric total.
+        bool HasTotalsRow(List<int> set) => rows.Count > 0 && set.Any(c => columns[c].Total);
+        bool HasLabel(List<int> set) => HasTotalsRow(set) && totals[set[0]] is null;
+        List<TextStat> SetStats(List<int> set)
+        {
+            var list = set.Select(c => stats[c]).ToList();
+            if (set.Count > 0 && HasLabel(set)) list[0] = list[0].Max(labelStat);
+            return list;
+        }
+
+        var sets = layout.Overflow == PdfOverflow.Split
+            ? PackColumnSets(columns, set => SetStats(set).Sum(z => z.Width(fs).Natural), printablePx)
+            : [Enumerable.Range(0, columns.Count).ToList()];
+
+        // Fit: the chosen font is a maximum. Shrink the table font (0.5px steps, floor 6px) until every
+        // column's min width fits the page, so numbers are not broken mid-token. Split keeps the chosen font.
+        var tableFs = (double)fs;
+        if (layout.Overflow == PdfOverflow.Fit)
+        {
+            var all = SetStats(sets[0]);
+            while (tableFs > PdfLayout.MinFontSizePx && all.Sum(z => z.Width(tableFs).Min) > printablePx)
+                tableFs = Math.Max(PdfLayout.MinFontSizePx, tableFs - 0.5);
+        }
+
         var sb = new StringBuilder();
-        sb.Append("""
+        sb.Append($$"""
             <!DOCTYPE html><html><head><meta charset="utf-8"><style>
-            body{font-family:'Sarabun','Noto Sans Thai',Arial,sans-serif;font-size:11px;color:#111}
-            h1{font-size:15px;margin:0 0 6px}
-            .filters{font-size:10px;color:#555;margin:0 0 10px}
+            @page{size:A4 {{(layout.Landscape ? "landscape" : "portrait")}};}
+            body{margin:0;font-family:'Sarabun','Noto Sans Thai',Arial,sans-serif;font-size:{{fs}}px;color:#111}
+            h1{font-size:1.36em;margin:0 0 6px}
+            .filters{font-size:.9em;color:#555;margin:0 0 10px}
             .filters strong{display:block;color:#111;margin-bottom:2px}
-            table{border-collapse:collapse;width:100%}
-            th,td{border:1px solid #999;padding:3px 5px;text-align:left;vertical-align:top}
+            .setcap{font-size:.9em;color:#555;margin:0 0 4px}
+            .set+.set{page-break-before:always}
+            table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:{{tableFs.ToString("0.##", Inv)}}px}
+            th,td{border:1px solid #999;padding:3px 5px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+            tr{page-break-inside:avoid}
             th{background:#e9e9e9;font-weight:bold}
             tr:nth-child(even) td{background:#f6f6f6}
             td.num{text-align:right}
-            tfoot td{font-weight:bold;background:#e9e9e9}
-            tfoot{display:table-row-group}
+            td.nw{white-space:nowrap}
+            tr.total td{font-weight:bold;background:#e9e9e9}
             .signoff{margin-top:24px;page-break-inside:avoid}
             .signoff div{display:inline-block;margin-right:48px;vertical-align:bottom}
             .signoff strong{display:block;margin-bottom:4px}
@@ -299,44 +489,58 @@ internal sealed class TabularExporter(
             sb.Append("</div>");
         }
 
-        sb.Append("<table><thead><tr>");
-        foreach (var col in columns)
-            sb.Append("<th").Append(CellStyle(col, false)).Append('>').Append(HtmlEnc(col.Header)).Append("</th>");
-        sb.Append("</tr></thead><tbody>");
-
-        foreach (var row in rows)
+        // "Down, then over": every row of column-set 1, then every row of set 2, ...
+        for (var s = 0; s < sets.Count; s++)
         {
-            sb.Append("<tr>");
-            foreach (var col in columns)
-            {
-                var cls = IsNumeric(col.Format) ? " class=\"num\"" : "";
-                sb.Append("<td").Append(cls).Append(CellStyle(col, true)).Append('>')
-                    .Append(HtmlEnc(FormatText(col.Value(row), col.Format)))
-                    .Append("</td>");
-            }
-            sb.Append("</tr>");
-        }
-        sb.Append("</tbody>");
+            var set = sets[s];
+            var (widths, nowrap) = AllocateWidths(SetStats(set).Select(z => z.Width(tableFs)).ToList(), printablePx);
+            var setTotal = widths.Sum();
 
-        if (columns.Any(col => col.Total) && rows.Count > 0)
-        {
-            sb.Append("<tfoot><tr>");
-            for (var c = 0; c < columns.Count; c++)
-            {
-                var col = columns[c];
-                if (col.Total && IsNumeric(col.Format))
-                    sb.Append("<td class=\"num\"").Append(CellStyle(col, false)).Append('>')
-                        .Append(HtmlEnc(FormatText(rows.Sum(row => ToDouble(col.Value(row)) ?? 0), col.Format)))
-                        .Append("</td>");
-                else if (c == 0)
-                    sb.Append("<td>").Append(HtmlEnc($"Total ({rows.Count})")).Append("</td>");
-                else
-                    sb.Append("<td></td>");
-            }
-            sb.Append("</tr></tfoot>");
-        }
+            sb.Append("<div class=\"set\">");
+            if (sets.Count > 1)
+                sb.Append("<div class=\"setcap\">Columns ").Append(s + 1).Append(" of ").Append(sets.Count).Append("</div>");
 
-        sb.Append("</table>");
+            // Columns are % of the table. The widths normally add up to the page (100%); the clamp covers float noise.
+            sb.Append("<table style=\"width:").Append(Math.Min(100, setTotal / printablePx * 100).ToString("0.##", Inv)).Append("%\"><colgroup>");
+            foreach (var w in widths)
+                sb.Append("<col style=\"width:").Append((w / setTotal * 100).ToString("0.##", Inv)).Append("%\">");
+            sb.Append("</colgroup><thead><tr>");
+            foreach (var c in set)
+                sb.Append("<th").Append(CellStyle(columns[c], false)).Append('>').Append(HtmlEnc(columns[c].Header)).Append("</th>");
+            sb.Append("</tr></thead><tbody>");
+
+            foreach (var rowCells in cells)
+            {
+                sb.Append("<tr>");
+                foreach (var c in set)
+                {
+                    var f = columns[c].Format;
+                    var nw = nowrap && IsNowrap(columns[c]) ? " nw" : "";
+                    var cls = IsNumeric(f) ? $" class=\"num{nw}\"" : nw.Length > 0 ? $" class=\"{nw.Trim()}\"" : "";
+                    sb.Append("<td").Append(cls).Append(CellStyle(columns[c], true)).Append('>').Append(HtmlEnc(rowCells[c])).Append("</td>");
+                }
+                sb.Append("</tr>");
+            }
+
+            // Totals are the last body row, not a <tfoot>: Chromium repeats tfoot on every printed page.
+            if (HasTotalsRow(set))
+            {
+                sb.Append("<tr class=\"total\">");
+                for (var i = 0; i < set.Count; i++)
+                {
+                    if (totals[set[i]] is { } total)
+                        sb.Append("<td class=\"num").Append(nowrap ? " nw" : "").Append('"').Append(CellStyle(columns[set[i]], false)).Append('>').Append(HtmlEnc(total)).Append("</td>");
+                    else if (i == 0)
+                        sb.Append("<td>").Append(HtmlEnc(totalLabel)).Append("</td>");
+                    else
+                        sb.Append("<td></td>");
+                }
+                sb.Append("</tr>");
+            }
+            sb.Append("</tbody>");
+
+            sb.Append("</table></div>");
+        }
 
         if (signoffs is { Count: > 0 })
         {
@@ -368,9 +572,37 @@ internal sealed class TabularExporter(
         return parts.Count == 0 ? "" : $" style=\"{string.Join(';', parts)}\"";
     }
 
+    // Greedily packs columns (by index) into sets whose natural width (setWidth, which includes the totals
+    // label) fits the printable width. Repeat columns are in every set (none marked = nothing repeats);
+    // indices stay in original column order.
+    private static List<List<int>> PackColumnSets<T>(
+        IReadOnlyList<ReportColumn<T>> columns, Func<List<int>, double> setWidth, double printablePx)
+    {
+        var repeat = Enumerable.Range(0, columns.Count).Where(c => columns[c].Repeat).ToList();
+        List<int> With(List<int> own, int? extra = null) => repeat.Concat(own).Concat(extra is { } e ? [e] : []).Order().ToList();
+
+        var sets = new List<List<int>>();
+        List<int> current = [];
+        foreach (var c in Enumerable.Range(0, columns.Count).Except(repeat))
+        {
+            if (current.Count > 0 && setWidth(With(current, c)) > printablePx)
+            {
+                sets.Add(With(current));
+                current = [];
+            }
+            current.Add(c);
+        }
+        sets.Add(With(current));
+
+        return sets;
+    }
+
     private static string HtmlEnc(string value) => WebUtility.HtmlEncode(value);
 
     // ---------- Shared formatting helpers ----------
+
+    // Numbers, dates and identifier (Repeat) columns are never broken mid-value.
+    private static bool IsNowrap<T>(ReportColumn<T> col) => col.Format != ColumnFormat.Text || col.Repeat;
 
     private static bool IsNumeric(ColumnFormat f) =>
         f is ColumnFormat.Integer or ColumnFormat.Decimal or ColumnFormat.Money or ColumnFormat.Percent;

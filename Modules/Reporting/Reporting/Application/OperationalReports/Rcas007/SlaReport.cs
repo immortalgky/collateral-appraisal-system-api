@@ -99,7 +99,7 @@ internal static class SlaReport
 
     private static IReadOnlyList<ReportColumn<Rcas007Row>> BuildColumns(bool retailIbgEarly) =>
     [
-        new("Appraisal No.", r => r.AppraisalNumber),
+        new("Appraisal No.", r => r.AppraisalNumber, Repeat: true),
         new("Customer Name", r => r.CustomerName),
         new("Purpose", r => r.Purpose),
         .. retailIbgEarly

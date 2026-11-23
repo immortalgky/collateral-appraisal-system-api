@@ -27,6 +27,7 @@ public interface ITabularExporter
     /// Optional sign-off lines rendered as a footer below the table (e.g. Print/Approve Report By).
     /// An entry with a null value renders a blank line to be signed by hand.
     /// </param>
+    /// <param name="pdfLayout">PDF only: orientation, overflow mode and font size. Null uses <see cref="PdfLayout.Default"/>.</param>
     Task<ReportFile> ExportAsync<T>(
         IReadOnlyList<T> rows,
         IReadOnlyList<ReportColumn<T>> columns,
@@ -35,5 +36,6 @@ public interface ITabularExporter
         string? title = null,
         IReadOnlyList<FilterCriterion>? appliedFilters = null,
         IReadOnlyList<ReportSignoff>? signoffs = null,
+        PdfLayout? pdfLayout = null,
         CancellationToken cancellationToken = default);
 }

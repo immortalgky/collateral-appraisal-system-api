@@ -55,12 +55,12 @@ public sealed class Rcas007Endpoint : ICarterModule
                 [FromQuery] string? appraisalNumber, [FromQuery] string? purpose, [FromQuery] string? customerName,
                 [FromQuery] string? externalStaff,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
-                IOperationalReportRunner runner, IReportSlaCalculator sla, CancellationToken ct) =>
+                PdfLayoutQuery layout, IOperationalReportRunner runner, IReportSlaCalculator sla, CancellationToken ct) =>
             {
                 var def = SlaReport.Create(baseName, title, scope, sla, over2Days, retailIbgEarly);
                 var filter = new Rcas007Filter(createdFrom, createdTo, status, appraisalCompany, internalStaff,
                     appraisalNumber, purpose, customerName, externalStaff, sortBy, sortDir);
-                var file = await runner.ExportAsync(def, filter, OperationalReportFormat.Parse(format), ct);
+                var file = await runner.ExportAsync(def, filter, OperationalReportFormat.Parse(format), layout.Value, ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })
             .WithName($"Export{slug}").WithSummary($"{slug.ToUpperInvariant()} export (xlsx | csv | pdf)");

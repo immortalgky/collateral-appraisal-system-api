@@ -32,10 +32,10 @@ public sealed class Rcas004Endpoint : ICarterModule
                 [FromQuery] DateTime? createdFrom, [FromQuery] DateTime? createdTo, [FromQuery] string? status,
                 [FromQuery] string? appraisalNumber,
                 [FromQuery] string? sortBy, [FromQuery] string? sortDir, [FromQuery] string? format,
-                IOperationalReportRunner runner, CancellationToken ct) =>
+                PdfLayoutQuery layout, IOperationalReportRunner runner, CancellationToken ct) =>
             {
                 var filter = new Rcas004Filter(createdFrom, createdTo, status, appraisalNumber, sortBy, sortDir);
-                var file = await runner.ExportAsync(Rcas004Report.Definition, filter, OperationalReportFormat.Parse(format), ct);
+                var file = await runner.ExportAsync(Rcas004Report.Definition, filter, OperationalReportFormat.Parse(format), layout.Value, ct);
                 return Results.File(file.Bytes, file.ContentType, file.FileName);
             })
             .WithName("ExportRcas004").WithSummary("RCAS004 export (xlsx | csv | pdf)");
