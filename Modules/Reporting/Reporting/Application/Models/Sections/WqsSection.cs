@@ -32,6 +32,9 @@ public sealed class WqsSection
     /// <summary>The comparable columns split into tables that fit the page.</summary>
     public IReadOnlyList<TableChunk> Chunks { get; init; } = [];
 
+    /// <summary>Unit of the money rows and the chart's y axis, from the method's UnitType (บาท / บาท/ตร.วา / บาท/ตร.ม.).</summary>
+    public string MoneyUnit { get; init; } = "บาท";
+
     // ── Scoring band (ปัจจัยให้คะแนน) ─────────────────────────────────────────────
 
     /// <summary>One row per factor in PricingFactorScores, ordered by its DisplaySequence.</summary>
@@ -173,6 +176,8 @@ public sealed class WqsScatter
 public sealed class WqsPriceRow
 {
     public string? Label { get; init; }
+    /// <summary>Printed in the blank column after the label: บาท / บาท/ตร.วา / บาท/ตร.ม. / % / ปี.</summary>
+    public string? Unit { get; init; }
     public IReadOnlyList<string?> Values { get; init; } = [];
     public bool Emphasis { get; init; }
 }

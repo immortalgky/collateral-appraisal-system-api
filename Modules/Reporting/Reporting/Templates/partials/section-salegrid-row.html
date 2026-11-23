@@ -14,7 +14,7 @@
 {{ else }}
 <tr{{ if row.emphasis }} style="font-weight:700;"{{ end }}>
   <td>{{ row.label }}</td>
-  <td{{ if !row.dash_empty }} class="num"{{ end }}>{{ if row.dash_empty }}{{ nz row.subject_value }}{{ else }}{{ row.subject_value }}{{ end }}</td>
+  {{ if row.unit }}<td style="text-align:center;">{{ row.unit }}</td>{{ else }}<td{{ if !row.dash_empty }} class="num"{{ end }}>{{ if row.dash_empty }}{{ nz row.subject_value }}{{ else }}{{ row.subject_value }}{{ end }}</td>{{ end }}
   {{ if row.amounts }}
   {{ for v in (sl row.values ch) }}<td class="num">{{ if row.dash_empty }}{{ nz v }}{{ else }}{{ v }}{{ end }}</td><td class="num">{{ if row.dash_empty }}{{ nz row.amounts[ch.start + for.index] }}{{ else }}{{ row.amounts[ch.start + for.index] }}{{ end }}</td>{{ end }}
   {{ else }}

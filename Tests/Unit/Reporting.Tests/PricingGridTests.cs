@@ -69,7 +69,7 @@ public class PricingGridTests
 
     // ── SG / DC rows ───────────────────────────────────────────────────────────
 
-    private static IReadOnlyList<SaleGridRow> Rows(bool dc, bool screenWeighted = false)
+    private static IReadOnlyList<SaleGridRow> Rows(bool dc, bool screenWeighted = false, string? unitType = null)
     {
         Guid c1 = Guid.NewGuid(), c2 = Guid.NewGuid(), f = Guid.NewGuid();
         var calc = new Dictionary<Guid, CalcRow>
@@ -84,7 +84,21 @@ public class PricingGridTests
             new Dictionary<string, IReadOnlyDictionary<string, string?>>(),
             new Dictionary<string, string?> { ["02"] = "912.33 ตารางวา" },
             showLand: true, showBuilding: false, finalValue: "114,240.00", finalLabel: dc ? "มูลค่าสุทธิ (ต่ำสุด)" : "มูลค่าสุทธิ (ถ่วงน้ำหนัก)",
-            toApplicationTime: d => d, screenWeighted: screenWeighted);
+            toApplicationTime: d => d, screenWeighted: screenWeighted, unitType: unitType);
+    }
+
+    [Theory]
+    [InlineData("PerSqWa", "บาท/ตร.วา")]
+    [InlineData("PerSqm", "บาท/ตร.ม.")]
+    [InlineData("PerUnit", "บาท")]
+    [InlineData(null, "บาท")]
+    public void Price_band_rows_carry_the_unit(string? unitType, string money)
+    {
+        var rows = Rows(dc: false, unitType: unitType);
+        rows.Single(r => r.Label == "ราคาซื้อขาย").Unit.Should().Be(money);
+        rows.Single(r => r.Label == "ราคาสุทธิหลังปรับ").Unit.Should().Be(money);
+        rows.Single(r => r.Label == "อัตราปรับตามเวลา (% ต่อปี)").Unit.Should().Be("%");
+        rows.Single(r => r.Label == "จำนวนปีนับจากวันซื้อขาย").Unit.Should().Be("ปี");
     }
 
     [Fact]
@@ -110,7 +124,7 @@ public class PricingGridTests
     [Fact]
     public void Years_print_BuySellYear_not_a_years_and_months_text()
     {
-        var years = Rows(dc: false).Single(r => r.Label == "จำนวนปี");
+        var years = Rows(dc: false).Single(r => r.Label == "จำนวนปีนับจากวันซื้อขาย");
         years.Values.Should().Equal(null, "36");
     }
 
@@ -131,7 +145,7 @@ public class PricingGridTests
     public void Derived_cells_show_in_the_adjusted_and_second_revision_rows()
     {
         var rows = Rows(dc: false);
-        rows.Single(r => r.Label == "มูลค่าที่ปรับแล้ว").Values.Should().Equal("70,000.00", "166,400.00");
+        rows.Single(r => r.Label == "ราคาสุทธิหลังปรับ").Values.Should().Equal("70,000.00", "166,400.00");
         rows.Single(r => r.Label == "รวมหลังปรับครั้งที่ 2").Values.Should().Equal("70,000.00", "166,400.00");
         rows.Select(r => r.Label).Should().Contain("พื้นที่ที่ดินส่วนขาด - เกิน (ตร.วา)").And.NotContain("พื้นที่ใช้สอยส่วนขาด - เกิน (ตร.ม.)");
     }

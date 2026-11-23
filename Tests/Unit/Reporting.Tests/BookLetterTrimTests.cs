@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Reporting.Application.Models;
+using Reporting.Application.Providers;
 using Reporting.Infrastructure.Rendering;
 
 namespace Reporting.Tests;
@@ -53,5 +54,14 @@ public class BookLetterTrimTests
 
         html.Should().Contain("<table class=\"kv-table\">").And.Contain("1,000,000.00 บาท").And.Contain("ขอเรียนแจ้งผลการประเมินมูลค่าทรัพย์สิน ดังนี้")
             .And.NotContain("bk-valbox").And.NotContain("bk-ext").And.NotContain("bk-title");
+    }
+
+    [Fact]
+    public void The_assessment_method_line_names_the_approach_never_the_method()
+    {
+        // A Market approach prints "วิธีเปรียบเทียบราคาตลาด" whatever method (WQS / Sale Grid) stands behind it; repeats collapse.
+        ExternalBookBuilder.SelectedApproachLine(["Market"]).Should().Be("วิธีเปรียบเทียบราคาตลาด");
+        ExternalBookBuilder.SelectedApproachLine(["Market", "Market", "Cost"]).Should().Be("วิธีเปรียบเทียบราคาตลาด, วิธีต้นทุน");
+        ExternalBookBuilder.SelectedApproachLine([]).Should().BeNull();
     }
 }

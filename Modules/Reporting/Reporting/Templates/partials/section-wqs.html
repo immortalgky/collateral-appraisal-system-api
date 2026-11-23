@@ -1,5 +1,6 @@
 {{- # caller sets: w = sec (one WqsSection). Layout = the pricing screen: 2-row header, ปัจจัยให้คะแนน band, price band, final row; the comparables are split into tables (w.chunks). -}}
 {{- func nz; if $0 != null && $0 != ""; ret $0; end; ret "-"; end -}}
+{{- func fm(v, f); if v == null; ret "-"; end; ret v | math.format f; end -}}
 {{- func sl(l, c); ret l | array.offset c.start | array.limit c.count; end -}}
 <div class="section-bar" style="text-align:center; text-decoration:underline; font-size:10pt;">ตารางแสดงวิธีการเปรียบเทียบให้คะแนนคุณภาพถ่วงน้ำหนัก (WQS)</div>
 {{ ctx = w.context }}{{ include 'partials/book-method-banner' }}
@@ -57,67 +58,56 @@
     <tr style="background:#e7e7e7; font-weight:700;"><td colspan="{{ span }}">ราคาเสนอขายและการปรับตามเวลา</td></tr>
     {{ for pr in w.price_rows }}
     <tr{{ if pr.emphasis }} style="font-weight:700;"{{ end }}>
-      <td>{{ pr.label }}</td>
-      <td colspan="5"></td>
+      <td colspan="3">{{ pr.label }}</td>
+      <td colspan="3" style="text-align:center;">{{ pr.unit }}</td>
       {{ for v in (sl pr.values ch) }}<td class="num" colspan="2">{{ nz v }}</td>{{ end }}
     </tr>
     {{ end }}
     {{ end }}
-    {{ if for.index == last_ch && w.forecast != null }}
-    <tr style="font-weight:700; border-top:2px solid #000;">
-      <td>มูลค่าสุทธิ (การถดถอย)</td>
-      <td colspan="3"></td>
-      <td class="num" colspan="2">{{ w.forecast | math.format "N2" }}</td>
-      <td colspan="{{ ch.count * 2 }}"></td>
+    {{ if for.index == last_ch && (w.rsq != null || w.steyx != null || w.intercept != null || w.slope != null || w.forecast != null || w.lowest_estimate != null || w.highest_estimate != null || w.scatter) }}
+  </tbody>
+  <tbody style="break-inside:avoid; page-break-inside:avoid;">
+    <tr>
+      <td colspan="3">สัมประสิทธิ์การตัดสินใจ</td><td class="num" colspan="3">{{ fm w.rsq "N4" }}</td>
+      <td colspan="{{ ch.count * 2 }}" rowspan="7" style="padding:2px; vertical-align:middle;">
+      {{ if w.scatter }}
+      {{ s = w.scatter }}
+      <svg aria-hidden="true" viewBox="0 0 {{ s.width }} {{ s.height }}" width="100%" style="display:block; background:#fff;">
+        <line x1="{{ s.plot_left }}" y1="{{ s.plot_top }}" x2="{{ s.plot_left }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
+        <line x1="{{ s.plot_left }}" y1="{{ s.plot_bottom }}" x2="{{ s.plot_right }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
+        <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dx="-4" dy="3" text-anchor="end" font-size="7">{{ s.y_max_label }}</text>
+        <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dx="-4" dy="3" text-anchor="end" font-size="7">{{ s.y_min_label }}</text>
+        <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dy="11" text-anchor="start" font-size="7">{{ s.x_min_label }}</text>
+        <text x="{{ s.plot_right }}" y="{{ s.plot_bottom }}" dy="11" text-anchor="end" font-size="7">{{ s.x_max_label }}</text>
+        <text x="{{ (s.plot_left + s.plot_right) / 2 }}" y="{{ s.plot_bottom }}" dy="22" text-anchor="middle" font-size="7.5" fill="#555">{{ s.x_axis_title }}</text>
+        <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dy="-4" text-anchor="start" font-size="7.5" fill="#555">{{ s.y_axis_title }} ({{ w.money_unit }})</text>
+        {{ if s.has_line }}
+        <line x1="{{ s.line_x1 }}" y1="{{ s.line_y1 }}" x2="{{ s.line_x2 }}" y2="{{ s.line_y2 }}" stroke="#1a6fb5" stroke-width="1.4" stroke-dasharray="4 2"/>
+        {{ end }}
+        {{ for pt in s.points }}
+        {{ if pt.is_subject }}
+        <rect x="{{ pt.cx }}" y="{{ pt.cy }}" width="7" height="7" transform="rotate(45 {{ pt.cx }} {{ pt.cy }})" fill="#d62728"/>
+        {{ else }}
+        <circle cx="{{ pt.cx }}" cy="{{ pt.cy }}" r="3" fill="#1a6fb5" fill-opacity="0.75"/>
+        {{ end }}
+        {{ end }}
+      </svg>
+      {{ else }}
+      <div style="font-size:8pt; color:#777;">ข้อมูลไม่เพียงพอสำหรับการแสดงกราฟ</div>
+      {{ end }}
+      </td>
     </tr>
+    <tr><td colspan="3">ค่าผิดพลาดมาตรฐาน</td><td class="num" colspan="3">{{ fm w.steyx "N2" }}</td></tr>
+    <tr><td colspan="3">จุดตัดแกน</td><td class="num" colspan="3">{{ fm w.intercept "N2" }}</td></tr>
+    <tr><td colspan="3">ความชัน</td><td class="num" colspan="3">{{ fm w.slope "N2" }}</td></tr>
+    <tr style="font-weight:700;"><td colspan="3">มูลค่าสุทธิ</td><td class="num" colspan="3">{{ fm w.forecast "N2" }}</td></tr>
+    <tr><td colspan="3">ค่าประมาณต่ำสุด</td><td class="num" colspan="3">{{ fm w.lowest_estimate "N2" }}</td></tr>
+    <tr><td colspan="3">ค่าประมาณสูงสุด</td><td class="num" colspan="3">{{ fm w.highest_estimate "N2" }}</td></tr>
     {{ end }}
   </tbody>
 </table>
 {{ end }}
 {{ end }}
-
-<div style="display:flex; gap:12px; align-items:flex-start; margin-top:6px;">
-  <div style="flex:1; min-width:0;">
-  {{ if w.rsq != null || w.steyx != null || w.intercept != null || w.slope != null || w.forecast != null || w.lowest_estimate != null || w.highest_estimate != null }}
-  <table role="presentation" class="grid">
-    {{ if w.rsq != null }}<tr><td>Coefficient of decision</td><td class="num">{{ w.rsq | math.format "N4" }}</td></tr>{{ end }}
-    {{ if w.steyx != null }}<tr><td>Standard error</td><td class="num">{{ w.steyx | math.format "N2" }}</td></tr>{{ end }}
-    {{ if w.intercept != null }}<tr><td>Intersection point</td><td class="num">{{ w.intercept | math.format "N2" }}</td></tr>{{ end }}
-    {{ if w.slope != null }}<tr><td>Slope</td><td class="num">{{ w.slope | math.format "N2" }}</td></tr>{{ end }}
-    {{ if w.forecast != null }}<tr style="font-weight:700;"><td>Final value</td><td class="num">{{ w.forecast | math.format "N2" }}</td></tr>{{ end }}
-    {{ if w.lowest_estimate != null }}<tr><td>Lowest estimate</td><td class="num">{{ w.lowest_estimate | math.format "N2" }}</td></tr>{{ end }}
-    {{ if w.highest_estimate != null }}<tr><td>Highest estimate</td><td class="num">{{ w.highest_estimate | math.format "N2" }}</td></tr>{{ end }}
-  </table>
-  {{ end }}
-  </div>
-  <div style="flex:1; min-width:0;">
-  {{ if w.scatter }}
-  {{ s = w.scatter }}
-  <svg aria-hidden="true" viewBox="0 0 {{ s.width }} {{ s.height }}" width="100%" style="border:1px solid #ccc; background:#fff;">
-    <line x1="{{ s.plot_left }}" y1="{{ s.plot_top }}" x2="{{ s.plot_left }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
-    <line x1="{{ s.plot_left }}" y1="{{ s.plot_bottom }}" x2="{{ s.plot_right }}" y2="{{ s.plot_bottom }}" stroke="#333" stroke-width="1"/>
-    <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dx="-4" dy="3" text-anchor="end" font-size="7">{{ s.y_max_label }}</text>
-    <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dx="-4" dy="3" text-anchor="end" font-size="7">{{ s.y_min_label }}</text>
-    <text x="{{ s.plot_left }}" y="{{ s.plot_bottom }}" dy="11" text-anchor="start" font-size="7">{{ s.x_min_label }}</text>
-    <text x="{{ s.plot_right }}" y="{{ s.plot_bottom }}" dy="11" text-anchor="end" font-size="7">{{ s.x_max_label }}</text>
-    <text x="{{ (s.plot_left + s.plot_right) / 2 }}" y="{{ s.plot_bottom }}" dy="22" text-anchor="middle" font-size="7.5" fill="#555">{{ s.x_axis_title }}</text>
-    <text x="{{ s.plot_left }}" y="{{ s.plot_top }}" dy="-4" text-anchor="start" font-size="7.5" fill="#555">{{ s.y_axis_title }} (บาท)</text>
-    {{ if s.has_line }}
-    <line x1="{{ s.line_x1 }}" y1="{{ s.line_y1 }}" x2="{{ s.line_x2 }}" y2="{{ s.line_y2 }}" stroke="#1a6fb5" stroke-width="1.4" stroke-dasharray="4 2"/>
-    {{ end }}
-    {{ for pt in s.points }}
-    {{ if pt.is_subject }}
-    <rect x="{{ pt.cx }}" y="{{ pt.cy }}" width="7" height="7" transform="rotate(45 {{ pt.cx }} {{ pt.cy }})" fill="#d62728"/>
-    {{ else }}
-    <circle cx="{{ pt.cx }}" cy="{{ pt.cy }}" r="3" fill="#1a6fb5" fill-opacity="0.75"/>
-    {{ end }}
-    {{ end }}
-  </svg>
-  {{ else }}
-  <div style="font-size:8pt; color:#777;">ข้อมูลไม่เพียงพอสำหรับการแสดงกราฟ</div>
-  {{ end }}
-  </div>
-</div>
 
 {{ fv_rows = w.final_rows }}{{ include 'partials/section-final-value' }}
 

@@ -136,7 +136,7 @@ internal static class SaleGridSectionLoader
         var rows = BuildRows(isDc, comparableIds, calcRows, factors, eavRows, scores, paramMaps, subject,
             showLand: types.Any(t => LandTypes.Contains(t)), showBuilding: types.Any(t => BuildingTypes.Contains(t)),
             finalValue: PricingGridCommon.Money(weightedNet ?? final?.FinalValue), finalLabel: finalLabel,
-            toApplicationTime: toApplicationTime, screenWeighted: weightedNet is not null);
+            toApplicationTime: toApplicationTime, screenWeighted: weightedNet is not null, unitType: method.UnitType);
 
         return new SaleGridSection
         {
@@ -174,14 +174,17 @@ internal static class SaleGridSectionLoader
         string? finalValue,
         string finalLabel,
         Func<DateTime, DateTime> toApplicationTime,
-        bool screenWeighted = false)
+        bool screenWeighted = false,
+        string? unitType = null)
     {
         var rows = new List<SaleGridRow>();
+        var bahtUnit = PricingGridCommon.MoneyUnit(unitType);
         SaleGridRow Band(string title) => new() { Kind = "band", Label = title };
         // A per-comparable row; cell returns null where the comparable has no value.
-        SaleGridRow Row(string label, Func<CalcRow, string?> cell, bool emphasis = false) => new()
+        SaleGridRow Row(string label, Func<CalcRow, string?> cell, bool emphasis = false, string? unit = null) => new()
         {
             Label = label,
+            Unit = unit,
             Values = ids.Select(id => calc.TryGetValue(id, out var c) ? cell(c) : null).ToList(),
             Emphasis = emphasis
         };
@@ -203,14 +206,14 @@ internal static class SaleGridSectionLoader
 
         // ราคาเสนอขายและการปรับตามเวลา: stored inputs, blank where not applicable (adjusted offer only with an offer price; period only with a sale price).
         rows.Add(Band("ราคาเสนอขายและการปรับตามเวลา"));
-        rows.Add(Row("ราคาเสนอขาย", c => HasOffer(c) ? Money(c.OfferingPrice) : null));
-        rows.Add(Row("ราคาเสนอขายที่ปรับแล้ว (%)", c => HasOffer(c) ? Money(c.AdjustOfferPricePct) : null));
-        rows.Add(Row("ราคาเสนอขายที่ปรับแล้ว (จำนวนเงิน)", c => HasOffer(c) ? Money(c.AdjustOfferPriceAmt) : null));
-        rows.Add(Row("ราคาขาย", c => HasSale(c) ? Money(c.SellingPrice) : null));
-        rows.Add(Row("จำนวนปี", c => HasSale(c) ? c.BuySellYear?.ToString(CultureInfo.InvariantCulture) : null));
-        rows.Add(Row("ระยะเวลาที่ปรับแล้ว (%)", c => HasSale(c) ? Money(c.AdjustedPeriodPct) : null));
-        rows.Add(Row("ระยะเวลาที่ปรับแล้วสะสม (%)", c => HasSale(c) ? Money(c.CumulativeAdjPeriod) : null));
-        rows.Add(Row("มูลค่าที่ปรับแล้ว", c => Money(AdjustedValue(c)), emphasis: true));
+        rows.Add(Row("ราคาเสนอขาย", c => HasOffer(c) ? Money(c.OfferingPrice) : null, unit: bahtUnit));
+        rows.Add(Row("การปรับแก้ราคาเสนอขาย (%)", c => HasOffer(c) ? Money(c.AdjustOfferPricePct) : null, unit: "%"));
+        rows.Add(Row("ราคาเสนอขายสุทธิหลังปรับ", c => HasOffer(c) ? Money(c.AdjustOfferPriceAmt) : null, unit: bahtUnit));
+        rows.Add(Row("ราคาซื้อขาย", c => HasSale(c) ? Money(c.SellingPrice) : null, unit: bahtUnit));
+        rows.Add(Row("จำนวนปีนับจากวันซื้อขาย", c => HasSale(c) ? c.BuySellYear?.ToString(CultureInfo.InvariantCulture) : null, unit: "ปี"));
+        rows.Add(Row("อัตราปรับตามเวลา (% ต่อปี)", c => HasSale(c) ? Money(c.AdjustedPeriodPct) : null, unit: "%"));
+        rows.Add(Row("การปรับตามเวลาสะสม (%)", c => HasSale(c) ? Money(c.CumulativeAdjPeriod) : null, unit: "%"));
+        rows.Add(Row("ราคาสุทธิหลังปรับ", c => Money(AdjustedValue(c)), emphasis: true, unit: bahtUnit));
 
         // ปรับปรุงครั้งที่ 2: land part, building part, total (the total always shows in the band).
         if (showLand || showBuilding)
@@ -280,7 +283,7 @@ internal static class SaleGridSectionLoader
 
     // ── Derived cells (not stored; each mirrors the screen's own formula) ──────────
 
-    /// <summary>มูลค่าที่ปรับแล้ว — mirrors calcAdjustedValue / calcAdjustedValueFromSellingPrice (domain/calculateSaleAdjustmentGrid.ts, same in DC): offer price wins; null when the comparable has no price.</summary>
+    /// <summary>ราคาสุทธิหลังปรับ (price-band result row) — mirrors calcAdjustedValue / calcAdjustedValueFromSellingPrice (domain/calculateSaleAdjustmentGrid.ts, same in DC): offer price wins; null when the comparable has no price.</summary>
     internal static decimal? AdjustedValue(CalcRow c)
     {
         if (HasOffer(c))

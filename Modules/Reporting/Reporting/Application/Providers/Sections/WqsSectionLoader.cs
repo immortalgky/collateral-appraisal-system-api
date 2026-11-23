@@ -178,9 +178,10 @@ internal static class WqsSectionLoader
             Context           = method.Context,
             ComparableHeaders = headers,
             Chunks            = PricingGridCommon.Chunks(comparableIds.Count, ComparablesPerTable),
+            MoneyUnit         = PricingGridCommon.MoneyUnit(method.UnitType),
             Factors           = factors,
             Totals            = TotalsRow(factorIds, scoreRows, comparableIds),
-            PriceRows         = BuildPriceRows(comparableIds, calcByComparable),
+            PriceRows         = BuildPriceRows(comparableIds, calcByComparable, method.UnitType),
             Rsq               = rsq?.Rsq,
             Steyx             = rsq?.Steyx,
             Intercept         = rsq?.Intercept,
@@ -310,28 +311,30 @@ internal static class WqsSectionLoader
     /// (adjusted offer only with an offer price; years / period only with a sale price). The bold last row is
     /// PricingCalculations.TotalAdjustedValue. No row at all when no comparable carries a price.
     /// </summary>
-    private static IReadOnlyList<WqsPriceRow> BuildPriceRows(IReadOnlyList<Guid> comparableIds, IReadOnlyDictionary<Guid, CalcRow> calc)
+    private static IReadOnlyList<WqsPriceRow> BuildPriceRows(IReadOnlyList<Guid> comparableIds, IReadOnlyDictionary<Guid, CalcRow> calc, string? unitType)
     {
         if (!comparableIds.Any(id => calc.TryGetValue(id, out var c) && (HasOffer(c) || HasSale(c))))
             return [];
 
-        WqsPriceRow Row(string label, Func<CalcRow, string?> cell, bool emphasis = false) => new()
+        var bahtUnit = PricingGridCommon.MoneyUnit(unitType);
+        WqsPriceRow Row(string label, Func<CalcRow, string?> cell, bool emphasis = false, string? unit = null) => new()
         {
             Label = label,
+            Unit = unit,
             Values = comparableIds.Select(id => calc.TryGetValue(id, out var c) ? cell(c) : null).ToList(),
             Emphasis = emphasis
         };
 
         return
         [
-            Row("ราคาเสนอขาย", c => HasOffer(c) ? PricingGridCommon.Money(c.OfferingPrice) : null),
-            Row("ราคาเสนอขายที่ปรับแล้ว (%)", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPricePct) : null),
-            Row("ราคาเสนอขายที่ปรับแล้ว (จำนวนเงิน)", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPriceAmt) : null),
-            Row("ราคาขาย", c => HasSale(c) ? PricingGridCommon.Money(c.SellingPrice) : null),
-            Row("จำนวนปี", c => HasSale(c) ? c.BuySellYear?.ToString(System.Globalization.CultureInfo.InvariantCulture) : null),
-            Row("ระยะเวลาที่ปรับแล้ว (%)", c => HasSale(c) ? PricingGridCommon.Money(c.AdjustedPeriodPct) : null),
-            Row("ระยะเวลาที่ปรับแล้วสะสม (%)", c => HasSale(c) ? PricingGridCommon.Money(c.CumulativeAdjPeriod) : null),
-            Row("มูลค่าที่ปรับแล้ว", c => PricingGridCommon.Money(c.TotalAdjustedValue), emphasis: true),
+            Row("ราคาเสนอขาย", c => HasOffer(c) ? PricingGridCommon.Money(c.OfferingPrice) : null, unit: bahtUnit),
+            Row("การปรับแก้ราคาเสนอขาย (%)", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPricePct) : null, unit: "%"),
+            Row("ราคาเสนอขายสุทธิหลังปรับ", c => HasOffer(c) ? PricingGridCommon.Money(c.AdjustOfferPriceAmt) : null, unit: bahtUnit),
+            Row("ราคาซื้อขาย", c => HasSale(c) ? PricingGridCommon.Money(c.SellingPrice) : null, unit: bahtUnit),
+            Row("จำนวนปีนับจากวันซื้อขาย", c => HasSale(c) ? c.BuySellYear?.ToString(System.Globalization.CultureInfo.InvariantCulture) : null, unit: "ปี"),
+            Row("อัตราปรับตามเวลา (% ต่อปี)", c => HasSale(c) ? PricingGridCommon.Money(c.AdjustedPeriodPct) : null, unit: "%"),
+            Row("การปรับตามเวลาสะสม (%)", c => HasSale(c) ? PricingGridCommon.Money(c.CumulativeAdjPeriod) : null, unit: "%"),
+            Row("ราคาสุทธิหลังปรับ", c => PricingGridCommon.Money(c.TotalAdjustedValue), emphasis: true, unit: bahtUnit),
         ];
     }
 
