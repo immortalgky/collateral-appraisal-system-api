@@ -454,12 +454,55 @@ public class BookMethodGapsTests
             Factors = [new WqsFactorRow { FactorName = "ทำเล", ComparableScores = ["8"], ComparableWeighted = ["8.00"] }],
             ComparableHeaders = [new MarketHeader { Title = "ตลาด 1" }],
             Chunks = [new TableChunk { Start = 0, Count = 1 }],
-            PriceRows = [new WqsPriceRow { Label = "ราคาขาย", Values = [null] }]
+            PriceRows = [new WqsPriceRow { Label = "ราคาซื้อขาย", Unit = "บาท", Values = [null] }]
         }] };
 
         var html = await RenderAsync("{{ w = model.wqs_sections[0] }}{{ include 'partials/section-wqs' }}", model);
 
-        html.Should().MatchRegex("<td>ราคาขาย</td>\\s*<td colspan=\"5\"></td>\\s*<td class=\"num\" colspan=\"2\">-</td>");
+        html.Should().MatchRegex("<td colspan=\"3\">ราคาซื้อขาย</td>\\s*<td colspan=\"3\" style=\"text-align:center;\">บาท</td>\\s*<td class=\"num\" colspan=\"2\">-</td>");
+    }
+
+    [Fact]
+    public async Task Wqs_regression_stats_sit_in_the_last_table_with_the_chart_beside_them()
+    {
+        var model = new AppraisalSummaryModel { WqsSections = [new WqsSection
+        {
+            Factors = [new WqsFactorRow { FactorName = "ทำเล", ComparableScores = ["8", "7", "6"], ComparableWeighted = ["8.00", "7.00", "6.00"] }],
+            ComparableHeaders = [new MarketHeader { Title = "ตลาด 1" }, new MarketHeader { Title = "ตลาด 2" }, new MarketHeader { Title = "ตลาด 3" }],
+            Chunks = [new TableChunk { Start = 0, Count = 3 }],
+            Rsq = 0.98765m, Forecast = 1234.5m
+        }] };
+
+        var html = await RenderAsync("{{ w = model.wqs_sections[0] }}{{ include 'partials/section-wqs' }}", model);
+
+        html.Should().NotContain("<td>มูลค่าสุทธิ (การถดถอย)</td>")
+            .And.Contain("<tbody style=\"break-inside:avoid; page-break-inside:avoid;\">")
+            .And.Contain("<td colspan=\"3\">สัมประสิทธิ์การตัดสินใจ</td><td class=\"num\" colspan=\"3\">0.9877</td>")
+            .And.Contain("<td colspan=\"3\">มูลค่าสุทธิ</td><td class=\"num\" colspan=\"3\">1,234.50</td>")
+            .And.Contain("<td colspan=\"3\">ความชัน</td><td class=\"num\" colspan=\"3\">-</td>")
+            .And.Contain("colspan=\"6\" rowspan=\"7\"").And.Contain("ข้อมูลไม่เพียงพอสำหรับการแสดงกราฟ");
+    }
+
+    [Fact]
+    public async Task Wqs_with_two_chunks_prints_the_stats_once_in_the_last_table_with_a_chart_as_wide_as_that_chunk()
+    {
+        string?[] five = ["1", "2", "3", "4", "5"];
+        var model = new AppraisalSummaryModel { WqsSections = [new WqsSection
+        {
+            Factors = [new WqsFactorRow { FactorName = "ทำเล", ComparableScores = five, ComparableWeighted = five }],
+            ComparableHeaders = Enumerable.Range(1, 5).Select(i => new MarketHeader { Title = $"ตลาด {i}" }).ToList(),
+            Chunks = [new TableChunk { Start = 0, Count = 4 }, new TableChunk { Start = 4, Count = 1 }],
+            Rsq = 0.98m
+        }] };
+
+        var html = await RenderAsync("{{ w = model.wqs_sections[0] }}{{ include 'partials/section-wqs' }}", model);
+
+        const string statsBody = "<tbody style=\"break-inside:avoid; page-break-inside:avoid;\">";
+        CountOf(html, "<table class=\"grid wqs\"").Should().Be(2);
+        CountOf(html, statsBody).Should().Be(1);
+        CountOf(html, "rowspan=\"7\"").Should().Be(1);
+        html.LastIndexOf(statsBody, StringComparison.Ordinal).Should().BeGreaterThan(html.LastIndexOf("<table class=\"grid wqs\"", StringComparison.Ordinal));
+        html.Should().Contain("colspan=\"2\" rowspan=\"7\""); // last chunk = 1 comparable -> 1 x 2
     }
 
     [Fact]

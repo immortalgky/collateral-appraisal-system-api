@@ -92,6 +92,14 @@ internal static class PricingGridCommon
         return DateTime.TryParseExact(text, LocalIsoFormats, Inv, DateTimeStyles.None, out var d) ? ThaiDateFormatter.Long(d) : value;
     }
 
+    /// <summary>Unit of the money rows in the price band: the method's UnitType (PerSqWa / PerSqm / otherwise lump sum).</summary>
+    internal static string MoneyUnit(string? unitType) => unitType?.ToLowerInvariant() switch
+    {
+        "persqwa" => "บาท/ตร.วา",
+        "persqm" => "บาท/ตร.ม.",
+        _ => "บาท"
+    };
+
     /// <summary>Mirrors the screen's marketKindLabel · marketDateLabel · marketUnitLabel.</summary>
     internal static string MarketSub(decimal? salePrice, DateTime? saleDate, DateTime? infoDate, string? offerUnit, string? saleUnit)
     {

@@ -58,5 +58,8 @@ public sealed class SaleGridRow
     /// <summary>True when an empty collateral / value cell should print "-" (factor and adjust bands); price rows leave it blank.</summary>
     public bool DashEmpty { get; init; }
 
+    /// <summary>Price-band rows only: printed in the (otherwise blank) collateral column — บาท / บาท/ตร.วา / บาท/ตร.ม. / % / ปี.</summary>
+    public string? Unit { get; init; }
+
     public bool Emphasis { get; init; }
 }

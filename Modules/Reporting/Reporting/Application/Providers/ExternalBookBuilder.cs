@@ -26,16 +26,7 @@ internal static class ExternalBookBuilder
     private const string ExternalAppraisalCriteria = "เพื่อทราบมูลค่าตลาด";
 
     // ── Method type → printed name ───────────────────────────────────────────────
-    // Market-comparison methods keep their long Thai name on the "วิธีการประเมินมูลค่า" row; the value table
-    // uses the short name next to the approach it belongs to.
-    private static readonly IReadOnlyDictionary<string, string> MethodTypeLabels =
-        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["WQS"]               = "วิธีเปรียบเทียบราคาตลาด (WQS)",
-            ["SaleGrid"]          = "วิธีเปรียบเทียบตลาด (Sale Grid)",
-            ["DirectComparison"]  = "วิธีเปรียบเทียบตลาด (Direct Comparison)",
-        };
-
+    // The value table uses the short name next to the approach it belongs to.
     private static readonly IReadOnlyDictionary<string, string> MethodShortNames =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -71,6 +62,13 @@ internal static class ExternalBookBuilder
     /// <summary>A stored non-zero value wins; a stored 0 means none (never printed back); otherwise <see cref="DeriveApproachValue"/>.</summary>
     internal static decimal? ApproachValueOf(decimal? stored, string? approachType, IReadOnlyList<PickedMethod> picked) =>
         PricingMethodPicker.HasValue(stored) ? stored : DeriveApproachValue(approachType, picked);
+
+    /// <summary>The "วิธีการประเมินมูลค่า" line: the selected approaches' labels, de-duplicated, joined with ", ". The approach only, never the method (WQS / Sale Grid).</summary>
+    internal static string? SelectedApproachLine(IEnumerable<string?> selectedApproachTypes)
+    {
+        var labels = selectedApproachTypes.Select(PricingMethodPicker.ApproachLabel).Where(l => !string.IsNullOrWhiteSpace(l)).Distinct().ToList();
+        return labels.Count > 0 ? string.Join(", ", labels) : null;
+    }
 
     /// <summary>
     /// One row per analysed approach of every property group — the approach the valuation used first, then
@@ -111,7 +109,7 @@ internal static class ExternalBookBuilder
         var multiGroup = approaches.Select(a => a.GroupNumber).Distinct().Count() > 1;
 
         var rows = new List<ApproachValueRow>();
-        var selectedLabels = new List<string>();
+        var selectedApproaches = new List<string?>();
         foreach (var a in approaches)
         {
             var mine = methods.Where(m => m.ApproachId == a.ApproachId).ToList();
@@ -119,8 +117,8 @@ internal static class ExternalBookBuilder
             // as nothing. Without one, a Cost approach has no value (the domain gives null with nothing selected, and a guessed combination of
             // alternatives would double count) and any other approach takes its first valued method in the picker's creation order.
             var value = ApproachValueOf(a.ApproachValue, a.ApproachType, mine);
-            // A value derived from one method (nothing stored) is that method's alone: the row and the "วิธีที่ใช้" line name only it, not every
-            // alternative the picker returned ("WQS + Sale Grid").
+            // A value derived from one method (nothing stored) is that method's alone: the row's Methods name only it, not every
+            // alternative the picker returned.
             IReadOnlyList<PickedMethod> shown = !PricingMethodPicker.HasValue(a.ApproachValue) && DerivingMethod(a.ApproachType, mine) is { } only
                 ? new[] { only } : mine;
             if (!a.IsSelected && !PricingMethodPicker.HasValue(value))
@@ -140,14 +138,7 @@ internal static class ExternalBookBuilder
             });
 
             if (a.IsSelected)
-            {
-                var marketLabels = shown.Select(m => MethodTypeLabels.GetValueOrDefault(m.MethodType)).OfType<string>().Distinct().ToList();
-                var line = string.Equals(a.ApproachType, "Market", StringComparison.OrdinalIgnoreCase) && marketLabels.Count > 0
-                    ? string.Join(" + ", marketLabels)
-                    : approachLabel;
-                if (!string.IsNullOrWhiteSpace(line) && !selectedLabels.Contains(line))
-                    selectedLabels.Add(line);
-            }
+                selectedApproaches.Add(a.ApproachType);
         }
 
         // pa.Remark repeats on every approach row of a group — take it once per group.
@@ -161,7 +152,7 @@ internal static class ExternalBookBuilder
         return new PricingSummary(
             rows,
             multiGroup,
-            selectedLabels.Count > 0 ? string.Join(", ", selectedLabels) : null,
+            SelectedApproachLine(selectedApproaches),
             reasons.Count > 0 ? string.Join("\n", reasons) : null);
     }
 
