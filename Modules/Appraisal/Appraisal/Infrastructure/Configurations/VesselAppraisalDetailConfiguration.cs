@@ -16,6 +16,7 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
         builder.Property(e => e.PropertyName).HasMaxLength(200);
         builder.Property(e => e.VesselName).HasMaxLength(200);
         builder.Property(e => e.EngineNo).HasMaxLength(100);
+        builder.Property(e => e.HullNumber).HasMaxLength(100);
         builder.Property(e => e.RegistrationNumber).HasMaxLength(50);
 
         // Vessel Specifications
@@ -23,7 +24,10 @@ public class VesselAppraisalDetailConfiguration : IOwnedEntityConfiguration<Appr
         builder.Property(e => e.Model).HasMaxLength(100);
         builder.Property(e => e.PlaceOfManufacture).HasMaxLength(200);
         builder.Property(e => e.VesselType).HasMaxLength(100);
+        builder.Property(e => e.VesselTypeOther).HasMaxLength(200);
         builder.Property(e => e.ClassOfVessel).HasMaxLength(100);
+        builder.Property(e => e.EnginePower).HasMaxLength(200);
+        builder.Property(e => e.NumberOfEngines).HasPrecision(10, 2);
 
         // Purchase Info
         builder.Property(e => e.PurchasePrice).HasPrecision(18, 2);

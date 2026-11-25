@@ -181,6 +181,33 @@ public class RequestSubmittedEventHandler(
                 FloorNumber = condoTitle.CondoInfo.FloorNumber,
                 UsableArea = condoTitle.CondoInfo.UsableArea
             };
+        else if (title is TitleVehicle vehicleTitle)
+            dto = dto with
+            {
+                VehicleType = vehicleTitle.VehicleInfo?.VehicleType,
+                VehicleRegistrationNumber = vehicleTitle.VehicleInfo?.VehicleRegistrationNumber,
+                VehicleLocation = vehicleTitle.VehicleInfo?.VehicleLocation,
+                VIN = vehicleTitle.VehicleInfo?.VIN,
+                LicensePlateNumber = vehicleTitle.VehicleInfo?.LicensePlateNumber
+            };
+        else if (title is TitleVessel vesselTitle)
+            dto = dto with
+            {
+                VesselType = vesselTitle.VesselInfo?.VesselType,
+                VesselLocation = vesselTitle.VesselInfo?.VesselLocation,
+                HIN = vesselTitle.VesselInfo?.HIN,
+                VesselRegistrationNumber = vesselTitle.VesselInfo?.VesselRegistrationNumber
+            };
+        else if (title is TitleMachine machineTitle)
+            dto = dto with
+            {
+                RegistrationStatus = machineTitle.MachineInfo?.RegistrationStatus ?? false,
+                RegistrationNumber = machineTitle.MachineInfo?.RegistrationNumber,
+                MachineType = machineTitle.MachineInfo?.MachineType,
+                InstallationStatus = machineTitle.MachineInfo?.InstallationStatus,
+                InvoiceNumber = machineTitle.MachineInfo?.InvoiceNumber,
+                NumberOfMachine = machineTitle.MachineInfo?.NumberOfMachine
+            };
 
         return dto;
     }

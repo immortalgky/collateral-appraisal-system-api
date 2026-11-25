@@ -8,6 +8,7 @@ public record UpdateVesselPropertyRequest(
     string? PropertyName = null,
     string? VesselName = null,
     string? EngineNo = null,
+    string? HullNumber = null,
     string? RegistrationNumber = null,
     DateTime? RegistrationDate = null,
     // Vessel Specifications
@@ -16,7 +17,10 @@ public record UpdateVesselPropertyRequest(
     int? YearOfManufacture = null,
     string? PlaceOfManufacture = null,
     string? VesselType = null,
+    string? VesselTypeOther = null,
     string? ClassOfVessel = null,
+    string? EnginePower = null,
+    decimal? NumberOfEngines = null,
     // Purchase Info
     DateTime? PurchaseDate = null,
     decimal? PurchasePrice = null,
