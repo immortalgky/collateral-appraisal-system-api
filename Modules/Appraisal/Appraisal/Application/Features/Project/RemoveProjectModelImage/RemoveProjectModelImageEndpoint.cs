@@ -34,6 +34,7 @@ public class RemoveProjectModelImageEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Remove image from project model")
             .WithDescription("Removes an image from a project model.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("ProjectModels");
     }
 }

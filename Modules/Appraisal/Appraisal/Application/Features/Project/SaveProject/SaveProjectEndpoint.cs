@@ -29,6 +29,7 @@ public class SaveProjectEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save project")
             .WithDescription("Creates or updates the project for an appraisal. ProjectType discriminates Condo vs LandAndBuilding.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

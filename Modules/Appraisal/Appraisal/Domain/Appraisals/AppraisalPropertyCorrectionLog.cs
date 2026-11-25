@@ -30,6 +30,12 @@ public class AppraisalPropertyCorrectionLog
     public string PropertyType { get; private set; } = null!;
 
     /// <summary>
+    /// The project row a project entry is about the model or tower id for <see cref="ProjectModelEntryType"/>
+    /// and <see cref="ProjectTowerEntryType"/>, null for every other entry.
+    /// </summary>
+    public Guid? TargetId { get; private set; }
+
+    /// <summary>
     /// JSON object keyed by dotted field path, each value <c>{ from, to }</c>:
     /// <c>Land.OwnerName</c>, or <c>Land.Titles[#1234].Rai</c> / <c>Building.DepreciationDetails[1].Periods…</c>
     /// for child rows (a row added or removed is one entry whose from/to is a one-line summary of the row).
@@ -43,6 +49,11 @@ public class AppraisalPropertyCorrectionLog
     public DateTime ChangedAt { get; private set; }
 
     public const string DocumentEntryType = "DOCUMENT";
+    public const string ProjectEntryType = "PROJECT";
+    public const string ProjectLandEntryType = "PROJECT_LAND";
+    public const string ProjectModelEntryType = "PROJECT_MODEL";
+    public const string ProjectTowerEntryType = "PROJECT_TOWER";
+    public const string ProjectUnitPriceEntryType = "PROJECT_UNIT_PRICE";
 
     private AppraisalPropertyCorrectionLog()
     {
@@ -79,4 +90,15 @@ public class AppraisalPropertyCorrectionLog
         string changedBy,
         DateTime changedAt) =>
         new(appraisalId, null, DocumentEntryType, changedFields, reason, changedBy, changedAt);
+
+    /// <summary>Entry for a correction of the appraisal's project; <paramref name="entryType"/> is one of the Project* types.</summary>
+    public static AppraisalPropertyCorrectionLog ForProject(
+        Guid appraisalId,
+        string entryType,
+        Guid? targetId,
+        string changedFields,
+        string reason,
+        string changedBy,
+        DateTime changedAt) =>
+        new(appraisalId, null, entryType, changedFields, reason, changedBy, changedAt) { TargetId = targetId };
 }

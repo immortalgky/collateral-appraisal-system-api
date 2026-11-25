@@ -24,6 +24,7 @@ public class SaveProjectUnitPricesEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Save project unit price flags")
             .WithDescription("Saves location flags (corner, edge, pool view, south, near garden, other) for project units. Works for both Condo and LandAndBuilding project types.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

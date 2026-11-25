@@ -29,6 +29,7 @@ public class CreateProjectTowerEndpoint : ICarterModule
             .ProducesProblem(StatusCodes.Status404NotFound)
             .WithSummary("Create project tower")
             .WithDescription("Creates a tower within a Condo project. Returns 500 if the project is not a Condo project.")
+            .AddEndpointFilter<RejectClosedAppraisalWriteFilter>()
             .WithTags("Project");
     }
 }

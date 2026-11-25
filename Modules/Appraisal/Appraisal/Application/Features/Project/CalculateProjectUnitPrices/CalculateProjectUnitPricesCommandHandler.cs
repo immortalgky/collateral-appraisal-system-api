@@ -83,7 +83,8 @@ public class CalculateProjectUnitPricesCommandHandler(
         // transaction; the staged ValuationAnalyses upsert + outbox message flush on commit. No
         // valuationDate override needed — the block appraisal's appointment already exists, so the
         // service derives ValuationDate from it.
-        await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
+        if (command.RecomputeValuation)
+            await valuationSummaryService.RecomputeAsync(command.AppraisalId, cancellationToken);
 
         return Unit.Value;
     }
