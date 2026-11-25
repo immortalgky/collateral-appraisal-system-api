@@ -199,6 +199,7 @@ internal static class SaleGridSectionLoader
                 Label = f.FactorName,
                 SubjectValue = Subject(f, subject),
                 DashEmpty = true,
+                TextFactor = !string.Equals(f.DataType, "Numeric", StringComparison.OrdinalIgnoreCase),
                 Values = ids.Select(id => FactorValue(f, eav.FirstOrDefault(e => e.FactorId == f.FactorId && e.MarketComparableId == id)?.Value, paramMaps, toApplicationTime)).ToList(),
                 Amounts = ids.Select(id => Level(scores.FirstOrDefault(s => s.FactorId == f.FactorId && s.MarketComparableId == id)?.ComparisonResult)).ToList()
             });

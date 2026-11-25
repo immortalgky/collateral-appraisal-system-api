@@ -62,4 +62,19 @@ public sealed class SaleGridRow
     public string? Unit { get; init; }
 
     public bool Emphasis { get; init; }
+
+    /// <summary>
+    /// True when at least one comparable cell holds text (a factor value such as a comma-separated list, not a plain figure). Such a row must
+    /// wrap; only rows of figures keep the one-line <c>.num</c> cell.
+    /// </summary>
+    public bool ValuesAreText => TextFactor || Values.Any(IsText);
+
+    /// <summary>A factor row whose factor is not numeric: its cells are text even when every one is empty (the "-" then aligns with the text).</summary>
+    public bool TextFactor { get; init; }
+
+    /// <summary>True when the collateral cell holds text (a factor value or the remark of the adjustment band), so it must wrap too.</summary>
+    public bool SubjectIsText => IsText(SubjectValue);
+
+    private static bool IsText(string? v) => !string.IsNullOrWhiteSpace(v)
+        && !decimal.TryParse(v.Trim(), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out _);
 }
