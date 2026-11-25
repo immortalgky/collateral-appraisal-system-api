@@ -9,7 +9,7 @@
 {{ if table.comparable_headers && table.comparable_headers.size > 0 }}
 {{ if cs.multi_group && table.group_number != lastg }}<div class="sub-bar">กลุ่มที่ {{ table.group_number }}</div>{{ lastg = table.group_number }}{{ end }}
 {{ if table.property_type_label && cs.tables.size > 1 }}<div class="sub-bar">{{ table.property_type_label }}</div>{{ end }}
-<table class="grid comparison">
+<table class="grid comparison" style="table-layout:fixed;">
   <thead style="break-after:avoid;">
     <tr>
       <th>รายการ</th>

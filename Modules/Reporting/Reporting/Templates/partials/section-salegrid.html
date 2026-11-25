@@ -10,7 +10,7 @@
 {{ span = 2 + ch.count * 2 }}
 {{ split = sgr.adjust_start }}
 {{ if split < 0 }}{{ split = sgr.rows.size }}{{ end }}
-<table class="grid" style="margin-bottom:6px;">
+<table class="grid" style="margin-bottom:6px; table-layout:fixed;">
   <thead>
     <tr>
       <th rowspan="2" style="width:20%;">ปัจจัย (Factors)</th>
@@ -29,7 +29,7 @@
 </table>
 {{ if split < sgr.rows.size }}
 {{~ # Second table: the adjustment band and everything after it, with its own header so a repeated header is always the right one. ~}}
-<table class="grid" style="margin-bottom:6px;">
+<table class="grid" style="margin-bottom:6px; table-layout:fixed;">
   <thead>
     <tr>
       <th rowspan="2" style="width:20%;">ปัจจัย</th>
