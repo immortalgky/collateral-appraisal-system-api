@@ -8,8 +8,15 @@ public class GetAppraisalSuspensionsQueryHandler(ISqlConnectionFactory connectio
 {
     private const int MaxPageSize = 100;
 
-    // Shared by the count and the rows so they always agree.
-    private const string BaseWhere = "ap.IsDeleted = 0 AND ap.Status = 'Completed'";
+    private const string WhereSql = """
+                                    WHERE ap.IsDeleted = 0 AND ap.Status = 'Completed'
+                                      AND (@Pattern IS NULL OR ap.AppraisalNumber LIKE @Pattern ESCAPE '\')
+                                      AND (@Suspended IS NULL OR ap.IsSuspended = @Suspended)
+                                    """;
+
+    private const string CountSql = """
+                                    SELECT COUNT(*) FROM appraisal.Appraisals ap
+                                    """ + "\n" + WhereSql + "\n" + "OPTION (RECOMPILE);";
 
     private const string SelectSql = """
                                      SELECT ap.Id AS AppraisalId,
@@ -29,17 +36,11 @@ public class GetAppraisalSuspensionsQueryHandler(ISqlConnectionFactory connectio
                                                   FROM appraisal.AppraisalSuspensionLogs
                                                   WHERE AppraisalId = ap.Id
                                                   ORDER BY ActionAt DESC, Id DESC) l
-                                     WHERE {0}
+                                     """ + "\n" + WhereSql + "\n" + """
                                      ORDER BY l.ActionAt DESC, ap.CompletedAt DESC, ap.Id
-                                     OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
+                                     OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY
+                                     OPTION (RECOMPILE);
                                      """;
-
-    private const string CountSql = "SELECT COUNT(*) FROM appraisal.Appraisals ap WHERE {0};";
-
-    // User text only travels as @Pattern, with its LIKE wildcards escaped.
-    private const string ByNumber = " AND ap.AppraisalNumber LIKE @Pattern ESCAPE '\\'";
-    private const string SuspendedOnly = " AND ap.IsSuspended = 1"; // IX_Appraisals_Suspended
-    private const string ActiveOnly = " AND ap.IsSuspended = 0";
 
     public async Task<PaginatedResult<AppraisalSuspensionRow>> Handle(
         GetAppraisalSuspensionsQuery query, CancellationToken cancellationToken)
@@ -53,33 +54,31 @@ public class GetAppraisalSuspensionsQueryHandler(ISqlConnectionFactory connectio
         if (!hasNumber && query.Status != SuspensionFilter.Suspended)
             return new PaginatedResult<AppraisalSuspensionRow>([], 0, pageNumber, pageSize);
 
-        var where = BaseWhere
-                    + (hasNumber ? ByNumber : "")
-                    + query.Status switch
-                    {
-                        SuspensionFilter.Suspended => SuspendedOnly,
-                        SuspensionFilter.Active => ActiveOnly,
-                        _ => ""
-                    };
-
         var parameters = new
         {
+            // User text only travels as @Pattern, with its LIKE wildcards escaped.
             Pattern = hasNumber ? "%" + EscapeLike(appraisalNumber!) + "%" : null,
+            Suspended = query.Status switch
+            {
+                SuspensionFilter.Suspended => true,
+                SuspensionFilter.Active => false,
+                _ => (bool?)null
+            },
             Skip = pageNumber * pageSize,
             Take = pageSize
         };
 
         var connection = connectionFactory.GetOpenConnection();
 
-        var count = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
-            string.Format(CountSql, where), parameters, cancellationToken: cancellationToken));
+        var count = await connection.ExecuteScalarAsync<long>(
+            new CommandDefinition(CountSql, parameters, cancellationToken: cancellationToken));
 
         if (count == 0)
             return new PaginatedResult<AppraisalSuspensionRow>([], 0, pageNumber, pageSize);
 
         // Positional record: column order in SelectSql must match the constructor.
-        var rows = await connection.QueryAsync<AppraisalSuspensionRow>(new CommandDefinition(
-            string.Format(SelectSql, where), parameters, cancellationToken: cancellationToken));
+        var rows = await connection.QueryAsync<AppraisalSuspensionRow>(
+            new CommandDefinition(SelectSql, parameters, cancellationToken: cancellationToken));
 
         return new PaginatedResult<AppraisalSuspensionRow>(rows.ToList(), count, pageNumber, pageSize);
     }
