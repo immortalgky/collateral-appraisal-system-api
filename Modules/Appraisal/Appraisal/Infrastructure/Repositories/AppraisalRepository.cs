@@ -94,6 +94,20 @@ public class AppraisalRepository(AppraisalDbContext dbContext, ISqlConnectionFac
     }
 
     /// <inheritdoc />
+    public async Task<Domain.Appraisals.Appraisal?> GetByIdForUpdateAsync(Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        // Needs the caller's transaction (TransactionalBehavior) to hold the lock until commit.
+        await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM appraisal.Appraisals WITH (UPDLOCK, ROWLOCK) WHERE Id = {id}",
+            cancellationToken);
+        return await GetByIdAsync(id, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public void AddSuspensionLog(AppraisalSuspensionLog log) => _dbContext.AppraisalSuspensionLogs.Add(log);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<AppraisalSummary>> GetSummariesAsync(
         IReadOnlyList<Guid> appraisalIds,
         CancellationToken cancellationToken = default)

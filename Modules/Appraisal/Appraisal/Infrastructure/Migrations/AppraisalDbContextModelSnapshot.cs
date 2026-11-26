@@ -448,6 +448,11 @@ namespace Appraisal.infrastructure.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<bool?>("IsWithinSLA")
                         .HasColumnType("bit");
 
@@ -513,6 +518,10 @@ namespace Appraisal.infrastructure.Migrations
                     b.HasIndex("Id")
                         .HasDatabaseName("IX_Appraisals_IsDeleted_NotDeleted")
                         .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("IsSuspended")
+                        .HasDatabaseName("IX_Appraisals_Suspended")
+                        .HasFilter("[IsSuspended] = 1");
 
                     b.HasIndex("PrevAppraisalId")
                         .HasFilter("[PrevAppraisalId] IS NOT NULL");
@@ -1508,6 +1517,40 @@ namespace Appraisal.infrastructure.Migrations
                     b.HasIndex("MeetingId");
 
                     b.ToTable("AppraisalReviews", "appraisal");
+                });
+
+            modelBuilder.Entity("Appraisal.Domain.Appraisals.AppraisalSuspensionLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("ActionAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ActionBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("AppraisalId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppraisalId", "ActionAt")
+                        .HasDatabaseName("IX_AppraisalSuspensionLogs_Appraisal_ActionAt");
+
+                    b.ToTable("AppraisalSuspensionLogs", "appraisal");
                 });
 
             modelBuilder.Entity("Appraisal.Domain.Appraisals.AssetSummary", b =>

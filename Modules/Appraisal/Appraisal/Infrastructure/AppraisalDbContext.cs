@@ -233,6 +233,9 @@ public class AppraisalDbContext : DbContext
     public DbSet<Domain.Appraisals.AppraisalPropertyCorrectionLog> AppraisalPropertyCorrectionLogs =>
         Set<Domain.Appraisals.AppraisalPropertyCorrectionLog>();
 
+    public DbSet<Domain.Appraisals.AppraisalSuspensionLog> AppraisalSuspensionLogs =>
+        Set<Domain.Appraisals.AppraisalSuspensionLog>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Set default schema

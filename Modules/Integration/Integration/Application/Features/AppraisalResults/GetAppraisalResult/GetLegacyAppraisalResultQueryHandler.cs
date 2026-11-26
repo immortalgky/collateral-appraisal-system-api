@@ -36,6 +36,11 @@ public class GetLegacyAppraisalResultQueryHandler(
 
             if (header is null) return Empty();
 
+            if (header.IsSuspended)
+            {
+                return Empty();
+            }
+
             var assignmentParams = new DynamicParameters();
             assignmentParams.Add("AppraisalId", header.Id);
             var assignment = await conn.QueryFirstOrDefaultAsync<AssignmentRow>(

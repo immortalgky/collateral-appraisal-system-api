@@ -567,6 +567,7 @@ public static class AuthModule
             .AddUserPermissionPolicy("address-master.manage", "ADDRESS_MASTER_MANAGE")
             .AddUserPermissionPolicy("reappraisal.generate-test-file", "REAPPRAISAL_GENERATE_TEST_FILE")
             .AddUserPermissionPolicy("appraisal.data-correction", "APPRAISAL_DATA_CORRECTION")
+            .AddUserPermissionPolicy("appraisal.suspension", "APPRAISAL_SUSPENSION")
             // Appraisal read surface. Accepts EITHER the full APPRAISAL_VIEW or the credit-side
             // APPRAISAL_TRACKING_VIEW; the handlers then mask the fields a tracking-only caller
             // must not receive. A prefix policy on "APPRAISAL_" would be wrong here — it would
