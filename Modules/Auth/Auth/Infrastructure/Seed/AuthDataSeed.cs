@@ -94,6 +94,7 @@ public class AuthDataSeed(
                 "BLOCK_REAPPRAISAL_VIEW", "BLOCK_REAPPRAISAL_CREATE",
                 "TASK_FEE_APPOINTMENT_APPROVAL", "FEE_APPROVAL_CONFIG", "APPOINTMENT_APPROVAL_CONFIG",
                 "WORKFLOW_ADMIN",
+                "APPRAISAL_SUSPENSION",
                 ..appraisalSectionViews
             ]);
         await SeedRoleWithPermissionsAsync(ExtAdminRoleName,
@@ -1041,6 +1042,10 @@ public class AuthDataSeed(
             // Admin data correction on closed appraisals (standalone screen, reason + audit trail)
             ("APPRAISAL_DATA_CORRECTION", "Correct Appraisal Property Data",
                 "Correct descriptive property data on Completed/Cancelled appraisals",
+                "Appraisal"),
+            // Suspend/reactivate a Completed appraisal for external result retrieval (standalone screen, audit trail).
+            ("APPRAISAL_SUSPENSION", "Suspend Appraisals",
+                "Suspend appraisals from external retrieval",
                 "Appraisal"),
             // Granted beside APPRAISAL_VIEW in every role list below, mirroring what
             // 20260914090000_SeedData_AppraisalTrackingForCredit.sql does to an existing database.

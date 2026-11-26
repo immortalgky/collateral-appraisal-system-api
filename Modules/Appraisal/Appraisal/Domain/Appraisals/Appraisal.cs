@@ -83,6 +83,10 @@ public class Appraisal : Aggregate<Guid>
     // Soft Delete
     public SoftDelete SoftDelete { get; private set; } = SoftDelete.NotDeleted();
 
+    // Withholds a Completed appraisal from external result retrieval. Not a status on purpose: Status stays
+    // Completed, so every other feature treats it as a normal Completed appraisal.
+    public bool IsSuspended { get; private set; }
+
     // Private constructor for EF Core
     private Appraisal()
     {
@@ -850,6 +854,22 @@ public class Appraisal : Aggregate<Guid>
         SettleSlaStatus(completedAt);
 
         AddDomainEvent(new AppraisalCompletedEvent(this));
+    }
+
+    public void Suspend()
+    {
+        ValidateStatus(AppraisalStatus.Completed, "suspend");
+        if (IsSuspended)
+            throw new InvalidAppraisalStateException("Appraisal is already suspended.");
+        IsSuspended = true;
+    }
+
+    public void Reactivate()
+    {
+        ValidateStatus(AppraisalStatus.Completed, "reactivate");
+        if (!IsSuspended)
+            throw new InvalidAppraisalStateException("Appraisal is not suspended.");
+        IsSuspended = false;
     }
 
     /// <summary>

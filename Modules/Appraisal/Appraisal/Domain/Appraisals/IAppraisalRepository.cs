@@ -43,6 +43,15 @@ public interface IAppraisalRepository : IRepository<Appraisal, Guid>
     Task<IReadOnlyList<AppraisalSummary>> GetSummariesAsync(
         IReadOnlyList<Guid> appraisalIds,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Locks the appraisal row (UPDLOCK) for the rest of the current transaction, then loads it. A concurrent
+    /// caller waits for the commit and then sees the new state.
+    /// </summary>
+    Task<Appraisal?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default);
+
+    /// <summary>Adds a suspend/reactivate audit row; saved with the appraisal.</summary>
+    void AddSuspensionLog(AppraisalSuspensionLog log);
 }
 
 /// <summary>

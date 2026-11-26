@@ -66,6 +66,12 @@ public class AppraisalAggregateConfiguration : IEntityTypeConfiguration<Domain.A
             .IsRequired()
             .HasDefaultValue(false);
 
+        builder.Property(a => a.IsSuspended).IsRequired().HasDefaultValue(false);
+        // Filtered to the few suspended rows; serves the suspension screen's Suspended list.
+        builder.HasIndex(a => a.IsSuspended)
+            .HasFilter("[IsSuspended] = 1")
+            .HasDatabaseName("IX_Appraisals_Suspended");
+
         // Request metadata denormalized from Request aggregate
         builder.Property(a => a.RequestedBy)
             .HasMaxLength(200);

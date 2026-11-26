@@ -8,6 +8,7 @@ using MediatR;
 using FluentValidation;
 using Shared.CQRS;
 using Shared.Data;
+using Shared.Exceptions;
 
 namespace Integration.Application.Features.AppraisalResults.GetAppraisalResult;
 
@@ -28,6 +29,10 @@ public class GetAppraisalResultByNumberQueryHandler(
             new CommandDefinition(GetAppraisalResultSql.ByAppraisalNumber, p, cancellationToken: cancellationToken));
 
         if (appraisal is null) return null;
+
+        // Suspended: 400 with a code external systems can match
+        if (appraisal.IsSuspended)
+            throw new BadRequestException("Appraisal is suspended.", null, "APPRAISAL_SUSPENDED");
 
         var selector = new UnitSelector(query.PlotNumber, query.RoomNumber, query.FloorNumber);
         // No case key on this route, so nothing identifies the caller beyond its token.
@@ -70,6 +75,9 @@ internal static class GetAppraisalResultSql
 {
     // Lookup by appraisal number returns any status (PMA / in-progress appraisals are retrieved before
     // completion). The by-external-case-key path below still restricts to completed appraisals.
+    //
+    // IsSuspended is always the last column (= last parameter of AppraisalRow / LegacyAppraisalRow).
+    // By number and legacy select it and reject in the handler; by case key filters it out in WHERE.
     public const string ByAppraisalNumber = """
                                             SELECT a.Id, a.AppraisalNumber, a.Status, a.Purpose, a.CompletedAt, a.RequestId,
                                                    -- SequenceOfApprove = the committee meeting number the appraisal was reviewed in
@@ -80,7 +88,8 @@ internal static class GetAppraisalResultSql
                                                     WHERE ar.AppraisalId = a.Id
                                                     ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove,
                                                    a.AppraisalType,
-                                                   rd.TotalSellingPrice AS MarketValue
+                                                   rd.TotalSellingPrice AS MarketValue,
+                                                   a.IsSuspended
                                             FROM appraisal.Appraisals a
                                             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
@@ -96,12 +105,14 @@ internal static class GetAppraisalResultSql
                                                     WHERE ar.AppraisalId = a.Id
                                                     ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove,
                                                    a.AppraisalType,
-                                                   rd.TotalSellingPrice AS MarketValue
+                                                   rd.TotalSellingPrice AS MarketValue,
+                                                   a.IsSuspended
                                             FROM appraisal.Appraisals a
                                             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                             JOIN request.Requests r ON r.Id = a.RequestId
                                             WHERE r.ExternalCaseKey = @ExternalCaseKey AND a.IsDeleted = 0
                                               AND a.Status = 'Completed'
+                                              AND a.IsSuspended = 0
                                             ORDER BY a.CreatedAt DESC, a.AppraisalNumber
                                             """;
 
@@ -117,7 +128,8 @@ internal static class GetAppraisalResultSql
                                                     FROM appraisal.AppraisalReviews ar
                                                     JOIN workflow.Meetings m ON m.Id = ar.MeetingId
                                                     WHERE ar.AppraisalId = a.Id
-                                                    ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove
+                                                    ORDER BY ar.ReviewedAt DESC) AS SequenceOfApprove,
+                                                   a.IsSuspended
                                             FROM appraisal.Appraisals a
                                             LEFT JOIN request.RequestDetails rd ON rd.RequestId = a.RequestId
                                             WHERE a.AppraisalNumber = @AppraisalNumber AND a.IsDeleted = 0
@@ -480,7 +492,8 @@ internal sealed record AppraisalRow(
     Guid RequestId,
     string? SequenceOfApprove,
     string? AppraisalType,
-    decimal? MarketValue);
+    decimal? MarketValue,
+    bool IsSuspended);
 
 internal sealed record AssignmentRow(
     Guid AssignmentId,
@@ -592,7 +605,8 @@ internal sealed record LegacyAppraisalRow(
     DateTime? CompletedAt,
     Guid RequestId,
     decimal? MarketValue,
-    string? SequenceOfApprove);
+    string? SequenceOfApprove,
+    bool IsSuspended);
 
 internal sealed record DocumentRow(string? DocumentType, Guid DocumentId, string FileName, DateTime? UploadedAt);
 
